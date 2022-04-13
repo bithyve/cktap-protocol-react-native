@@ -49,7 +49,7 @@ export const FACTORY_ROOT_KEYS = {
 };
 
 //  our cards will provide this answer to reset (ATR)
-//  need to check decoding
+//  TODO: need to check decoding
 export const CARD_ATR = [59, 136, 128, 1].concat(decode('Coinkite')) + [49];
 //  pthyon implementation: CARD_ATR = [59, 136, 128, 1] + list(b'Coinkite') + [49]
 

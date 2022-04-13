@@ -15,6 +15,7 @@
   "author": "Praneeth G",
   "license": "MIT",
   "dependencies": {
+    "bs58": "^5.0.0",
     "cbor": "^8.1.0",
     "js-sha256": "^0.9.0",
     "ripemd160": "^2.0.2"

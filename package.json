@@ -1,5 +1,5 @@
 {
-  "name": "coinkite_tap_protocol-js",
+  "name": "coinkite-tap-protocol-js",
   "version": "0.0.1",
   "description": "coinkite's tap protocol to support Tapcards and Satcards in javascript",
   "main": "index.js",

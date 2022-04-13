@@ -14,6 +14,7 @@ import {
 
 import { SW_OKAY } from './constants';
 import base58 from 'bs58';
+import { hash160 } from './compat';
 
 // TODO: verify .get of the response object
 

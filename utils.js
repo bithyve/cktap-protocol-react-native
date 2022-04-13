@@ -28,3 +28,18 @@ const path2str = (path) => {
   });
   return ["m"].concat(temp).join("/");
 };
+
+const str2path = (path) => {
+  // normalize notation and return numbers, no error checking
+  let rv = [];
+
+  pathArr = path.split("/");
+  for (const i of pathArr) {
+    if (i === "m") continue;
+    if (!i) continue;
+    let here;
+    if (i[-1] in "p'h") here = parseInt(i.slice(0, -1), 0) | HARDENED;
+    else here = parseInt(i, 0);
+    rv.push(here);
+  }
+};

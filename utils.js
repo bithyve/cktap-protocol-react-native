@@ -17,3 +17,14 @@ export const pick_nonce = () => {
     if (rv[0] != rv[-1] || rvSet.length >= 2) return rv;
   }
 };
+
+const HARDENED = 0x8000_0000;
+
+const path2str = (path) => {
+  // take numeric path (list of numbers) and convert to human form
+  // - standardizing on "m/84h" style
+  temp = path.map((val) => {
+    String(val & ~HARDENED) + (val & HARDENED ? "h" : "");
+  });
+  return ["m"].concat(temp).join("/");
+};

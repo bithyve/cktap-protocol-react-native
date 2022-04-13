@@ -1,16 +1,74 @@
-import { CARD_NONCE_SIZE, USER_NONCE_SIZE } from './constants';
+import { ADDR_TRIM, CARD_NONCE_SIZE, USER_NONCE_SIZE } from './constants';
 
-// xor_bytes
-// pick_nonce
-// path2str
-// str2path
+import { bech32 } from 'bech32';
+import { hash160 } from './compat';
+
 // card_pubkey_to_ident
 // verify_certs
 // recover_pubkey
-// recover_address
-// force_bytes
-import { bech32 } from 'bech32';
-import { hash160 } from './compat';
+
+const BytesArray = (str) => {
+  let bytes = [];
+  for (var i = 0; i < str.length; ++i) {
+    var code = str.charCodeAt(i);
+    bytes = bytes.concat([code]);
+  }
+  return bytes;
+};
+
+function recover_address(status_resp, read_resp, my_nonce) {
+  // [SC] Given the response from "status" and "read" commands, and the
+  // nonce we gave for read command, reconstruct the card's verified payment
+  // address. Check prefix/suffix match what's expected
+  if (status_resp.get('tapsigner', false)) {
+    console.warn('recover_address: tapsigner not supported');
+    return;
+  }
+
+  const sl = status_resp['slots'][0];
+  // TODO: verify if b'string' has some sp meaning in python
+  // TODO: also veify BytesArray
+  const msg =
+    'OPENDIME' + status_resp['card_nonce'] + my_nonce + BytesArray(sl);
+  if (msg.length !== 8 + CARD_NONCE_SIZE + USER_NONCE_SIZE + 32) {
+    console.warn('recover_address: invalid message length');
+    return;
+  }
+
+  const pubkey = read_resp['pubkey'];
+
+  // Critical: proves card knows key
+  const ok = CT_sig_verify(pubkey, sha256s(msg), read_resp['sig']);
+  if (!ok) {
+    console.warn('Bad sig in recover_address');
+    return;
+  }
+
+  const expect = status_resp['addr'];
+  const left = expect.slice(0, expect.find('_'));
+  const right = expect.slice(expect.find('_') + 1);
+
+  // Critical: counterfieting check
+  const addr = render_address(pubkey, status_resp.get('testnet', false));
+  if (
+    !(
+      addr.startswith(left) &&
+      addr.endswith(right) &&
+      (left.length == right.length) == ADDR_TRIM
+    )
+  ) {
+    console.warn('Corrupt response');
+    return;
+  }
+
+  return { pubkey, addr };
+}
+
+function force_bytes(foo) {
+  // convert strings to bytes where needed
+  // TODO: verify Buffer implementation
+  return typeof foo == 'string' ? Buffer.from(foo, 'hex') : foo;
+}
 
 function verify_master_pubkey(pub, sig, chain_code, my_nonce, card_nonce) {
   // using signature response from 'deriv' command, recover the master pubkey
@@ -53,4 +111,9 @@ function verify_derive_address(chain_code, master_pub, testnet = false) {
   return render_address(pubkey, (testnet = testnet)), pubkey;
 }
 
-module.exports = { verify_derive_address, verify_master_pubkey };
+module.exports = {
+  verify_derive_address,
+  verify_master_pubkey,
+  force_bytes,
+  recover_address,
+};

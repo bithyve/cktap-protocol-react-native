@@ -3,6 +3,17 @@ import { ADDR_TRIM, CARD_NONCE_SIZE, USER_NONCE_SIZE } from "./constants";
 import { bech32 } from "bech32";
 import { hash160 } from "./compat";
 
+function xor_bytes(a, b) {
+  if (typeof a === "string" && typeof a === "number") a.toString();
+  if (typeof b === "string" && typeof b === "number") b.toString();
+  if (a.length == b.length) {
+    const buf1 = Buffer.from(a, "hex");
+    const buf2 = Buffer.from(b, "hex");
+    const bufResult = buf1.map((byte, i) => byte ^ buf2[i]);
+    return bufResult.toString("hex");
+  }
+}
+
 function randomStringGenerator(length) {
   const characters =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -158,6 +169,7 @@ function verify_derive_address(chain_code, master_pub, testnet = false) {
 }
 
 module.exports = {
+  xor_bytes,
   pick_nonce,
   str2path,
   path2str,

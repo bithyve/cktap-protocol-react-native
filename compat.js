@@ -9,4 +9,54 @@ function hash160(args) {
   return ripemd160(sha256(args));
 }
 
-module.exports = hash160;
+function CT_pick_keypair() {
+  // return (priv, pub)
+  throw new Error('Not implemented');
+}
+
+function CT_priv_to_pubkey(pk) {
+  // return compressed pubkey
+  throw new Error('Not implemented');
+}
+
+function CT_sig_verify(pub, msg_digest, sig) {
+  // returns True or False
+  if (sig.length != 64) {
+    throw new Error('invalid sig length');
+  }
+  throw new Error('Not implemented');
+}
+
+function CT_sig_to_pubkey(msg_digest, sig) {
+  // returns a pubkey (33 bytes)
+  if (sig.length != 65) {
+    throw new Error('invalid sig length');
+  }
+  throw new Error('Not implemented');
+}
+
+function CT_ecdh(his_pubkey, my_privkey) {
+  // returns a 32-byte session key, which is sha256s(compressed point)
+  throw new Error('Not implemented');
+}
+
+function CT_sign(privkey, msg_digest, recoverable = false) {
+  // returns 64-byte sig
+  throw new Error('Not implemented');
+}
+
+function CT_bip32_derive(chain_code, master_priv_pub, subkey_path) {
+  // return pubkey (33 bytes)
+  throw new Error('Not implemented');
+}
+
+module.exports = {
+  hash160,
+  CT_pick_keypair,
+  CT_priv_to_pubkey,
+  CT_sig_verify,
+  CT_sig_to_pubkey,
+  CT_ecdh,
+  CT_sign,
+  CT_bip32_derive,
+};

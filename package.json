@@ -4,6 +4,7 @@
   "description": "coinkite's tap protocol to support Tapcards and Satcards in javascript",
   "main": "index.js",
   "scripts": {
+    "prepare": "install-peers",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -22,6 +23,9 @@
     "ripemd160": "^2.0.2"
   },
   "peerDependencies": {
-    "react-native": ">=0.60.0"
+    "react-native-nfc-manager": ">=3.13.2"
+  },
+  "devDependencies": {
+    "install-peers-cli": "^2.2.0"
   }
 }

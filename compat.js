@@ -1,5 +1,8 @@
 var RIPEMD160 = require('ripemd160');
 var sha256 = require('js-sha256');
+var { ECPairFactory } = require('ecpair');
+var ecc = require('tiny-secp256k1');
+const ECPair = ECPairFactory(ecc);
 
 function ripemd160(args = '') {
   return new RIPEMD160().update(args).digest('hex');
@@ -10,8 +13,10 @@ function hash160(args) {
 }
 
 function CT_pick_keypair() {
-  // return (priv, pub)
-  throw new Error('Not implemented');
+  const keyPair = ECPair.makeRandom();
+  const priv = keyPair.privateKey.toString('hex')
+  const pub = keyPair.publicKey.toString('hex')
+  return { priv, pub }
 }
 
 function CT_priv_to_pubkey(pk) {

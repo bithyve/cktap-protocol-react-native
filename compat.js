@@ -14,14 +14,16 @@ function hash160(args) {
 
 function CT_pick_keypair() {
   const keyPair = ECPair.makeRandom();
-  const priv = keyPair.privateKey.toString('hex')
+  const priv = keyPair.toWIF()
   const pub = keyPair.publicKey.toString('hex')
   return { priv, pub }
 }
 
-function CT_priv_to_pubkey(pk) {
+function CT_priv_to_pubkey(priv) {
   // return compressed pubkey
-  throw new Error('Not implemented');
+  const keyPair = ECPair.fromWIF( priv )
+  const pub = keyPair.publicKey.toString('hex')
+  return pub
 }
 
 function CT_sig_verify(pub, msg_digest, sig) {

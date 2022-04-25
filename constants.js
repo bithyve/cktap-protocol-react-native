@@ -49,8 +49,10 @@ export const FACTORY_ROOT_KEYS = {
 };
 
 //  our cards will provide this answer to reset (ATR)
-//  TODO: need to check decoding
-export const CARD_ATR = [59, 136, 128, 1].concat(decode('Coinkite')) + [49];
+//TODO: need to check decoding
+// this is not used yet in the js lib
+export const CARD_ATR =
+  [59, 136, 128, 1].concat(["'"].concat('Coinkite'.split())) + [49];
 //  pthyon implementation: CARD_ATR = [59, 136, 128, 1] + list(b'Coinkite') + [49]
 
 //  our Javacard applet has this APP ID

@@ -16,9 +16,9 @@ import { SW_OKAY } from './constants';
 import base58 from 'bs58';
 import { hash160 } from './compat';
 
-// TODO: verify .get of the response object
+//TODO: verify .get of the response object
 
-// TODO: will update after nfc integration
+//TODO: will update after nfc integration
 function _send(cmd, args = {}) {
   let stat_word;
   let resp;
@@ -60,9 +60,8 @@ export class CKTapCard {
     }
 
     if (raise_on_error && resp['error']) {
-      // TODO: implement resp.pop
-      const msg = resp.pop('error');
-      const code = resp.pop('code', 500);
+      const msg = resp['error'];
+      const code = resp['code'] || 500;
       throw new Error(`${code} on ${cmd}: ${msg}`);
     }
 
@@ -104,7 +103,7 @@ export class CKTapCard {
 
     // certs will not verify on emulator, and expensive to do more than once in
     // normal cases too
-    // TODO: this needs to be updated after communication is set
+    //TODO: this needs to be updated after communication is set
     this._certs_checked = !!this.tr.is_emulator;
   }
 
@@ -119,8 +118,7 @@ export class CKTapCard {
       const { sk, ag } = calc_xcvc(cmd, this.card_nonce, this.card_pubkey, cvc);
       session_key = sk;
       auth_args = ag;
-      // TODO: implement args.update?
-      args.update(auth_args);
+      args = { ...args, ...auth_args };
     }
 
     // A few commands take an encrypted argument (most are returning encrypted
@@ -128,7 +126,6 @@ export class CKTapCard {
     if (cmd === 'sign') {
       args.digest = xor_bytes(args.digest, session_key);
     } else if (cmd == 'change') {
-      // TODO: slice check?
       args.data = xor_bytes(args.data, session_key.slice(0, args.data.length));
     }
     return { session_key, resp: this.send(cmd, args) };
@@ -192,7 +189,7 @@ export class CKTapCard {
         (testnet = this.is_testnet)
       );
       if (derived_addr != addr) {
-        // TODO: ValueError same as new Error?
+        //TODO: ValueError same as new Error?
         throw new Error('card did not derive address as expected');
       }
     }
@@ -227,7 +224,7 @@ export class CKTapCard {
     const np = str2path(path);
 
     if (!all_hardened(np)) {
-      // TODO: ValueError same as new Error?
+      //TODO: ValueError same as new Error?
       throw new Error('All path components must be hardened');
     }
 
@@ -252,7 +249,6 @@ export class CKTapCard {
     }
     const { _, resp } = this.send_auth('xpub', cvc, { master: true });
     const xpub = resp['xpub'];
-    // TODO: check that xpub slice is correct (syntax)
     // python: return hash160(xpub[-33:])[0:4]
     return hash160(xpub.slice(-33)).slice(0, 4);
   }
@@ -265,7 +261,7 @@ export class CKTapCard {
     }
     const { _, resp } = this.send_auth('xpub', cvc, { master });
     const xpub = resp['xpub'];
-    // TODO: check base58.decode (syntax)
+    //TODO: check base58.decode (syntax)
     // python: return base58.b58encode_check(xpub).decode('ascii')
     return base58.decode(xpub);
   }
@@ -393,7 +389,6 @@ export class CKTapCard {
       status = 'unused';
     } else {
       // unreachable.
-      // TODO: make repr
       console.warn(JSON.stringify(resp));
       return;
     }

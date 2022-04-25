@@ -28,7 +28,7 @@ function url_decoder(fragment) {
   const urlParams = new URLSearchParams(fragment);
   try {
     const nonce = Buffer.from(urlParams['n'], 'hex');
-    const is_tapsigner = bool(urlParams.get('t', false));
+    const is_tapsigner = !!urlParams.get('t', false);
     if (nonce.length !== 8) {
       console.warn('invalid nonce length');
       return;
@@ -116,3 +116,5 @@ function url_decoder(fragment) {
     console.log(e);
   }
 }
+
+module.exports(url_decoder);

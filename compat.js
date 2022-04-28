@@ -1,8 +1,7 @@
 var RIPEMD160 = require('ripemd160');
 var sha256 = require('js-sha256');
-var { ECPairFactory } = require('ecpair');
-var ecc = require('tiny-secp256k1');
-const ECPair = ECPairFactory(ecc);
+const { randomBytes } = require('crypto')
+const secp256k1 = require('secp256k1')
 
 function ripemd160(args = '') {
   return new RIPEMD160().update(args).digest('hex');
@@ -13,43 +12,45 @@ function hash160(args) {
 }
 
 function CT_pick_keypair() {
-  const keyPair = ECPair.makeRandom();
-  const priv = keyPair.toWIF()
-  const pub = keyPair.publicKey.toString('hex')
+  // return {priv, pub}
+  let priv;
+  const compressed = true
+  do {
+  priv = randomBytes(32)
+  } while (!secp256k1.privateKeyVerify(priv))
+  const pub = secp256k1.publicKeyCreate(priv, compressed)
+
   return { priv, pub }
 }
 
 function CT_priv_to_pubkey(priv) {
   // return compressed pubkey
-  const keyPair = ECPair.fromWIF( priv )
-  const pub = keyPair.publicKey.toString('hex')
-  return pub
+  const compressed = true
+  return secp256k1.publicKeyCreate(priv, compressed)
 }
 
 function CT_sig_verify(pub, msg_digest, sig) {
   // returns True or False
-  if (sig.length != 64) {
-    throw new Error('invalid sig length');
-  }
-  throw new Error('Not implemented');
+  
+  return secp256k1.ecdsaVerify(sig, msg_digest, pub)
 }
 
 function CT_sig_to_pubkey(msg_digest, sig) {
   // returns a pubkey (33 bytes)
-  if (sig.length != 65) {
-    throw new Error('invalid sig length');
-  }
-  throw new Error('Not implemented');
+  
+  return secp256k1.ecdsaRecover(sig.signature, sig.recid, msg_digest)
 }
 
 function CT_ecdh(his_pubkey, my_privkey) {
   // returns a 32-byte session key, which is sha256s(compressed point)
-  throw new Error('Not implemented');
+
+  return secp256k1.ecdh(his_pubkey, my_privkey)
 }
 
 function CT_sign(privkey, msg_digest, recoverable = false) {
   // returns 64-byte sig
-  throw new Error('Not implemented');
+
+  return secp256k1.ecdsaSign(msg_digest, privkey )
 }
 
 function CT_bip32_derive(chain_code, master_priv_pub, subkey_path) {

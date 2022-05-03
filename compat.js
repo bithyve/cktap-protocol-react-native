@@ -1,7 +1,10 @@
-var RIPEMD160 = require('ripemd160');
-var sha256 = require('js-sha256');
+const RIPEMD160 = require('ripemd160');
+const sha256 = require('js-sha256');
 const { randomBytes } = require('crypto')
 const secp256k1 = require('secp256k1')
+const ecc = require('tiny-secp256k1');
+const { BIP32Factory } = require('bip32');
+
 
 function ripemd160(args = '') {
   return new RIPEMD160().update(args).digest('hex');
@@ -55,7 +58,22 @@ function CT_sign(privkey, msg_digest, recoverable = false) {
 
 function CT_bip32_derive(chain_code, master_priv_pub, subkey_path) {
   // return pubkey (33 bytes)
-  throw new Error('Not implemented');
+  const bip32 = BIP32Factory(ecc);
+
+  let master
+  if(master_priv_pub.length === 32) {
+    // master_priv_pub :: private_key 
+     master = bip32.fromPrivateKey(master_priv_pub, chain_code)
+  } else {
+    // master_priv_pub :: public_key 
+     master = bip32.fromPublicKey(master_priv_pub, chain_code)
+  }
+
+  let node
+  subkey_path.forEach((index) => {
+    node = master.derive(index)
+  })
+  return node.publicKey
 }
 
 module.exports = {

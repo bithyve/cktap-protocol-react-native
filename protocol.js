@@ -19,13 +19,13 @@ import {
 } from './utils';
 
 import base58 from 'bs58';
+import { send as transceive } from './nfc';
 
 //TODO: verify .get of the response object
 
 //TODO: will update after nfc integration
-function _send(cmd, args = {}) {
-  let stat_word;
-  let resp;
+async function _send(cmd, args = {}) {
+  const { status: stat_word, response: resp } = await transceive(cmd, args);
   return { stat_word, resp };
 }
 
@@ -475,3 +475,5 @@ export class CKTapCard {
     throw new Error(`500 on sign: ${msg}`);
   }
 }
+
+module.exports = CKTapCard;

@@ -1,6 +1,12 @@
+import { CT_sig_verify, hash160 } from './compat';
+import { DERIVE_MAX_BIP32_PATH_DEPTH, SW_OKAY } from './constants';
 import {
+  all_hardened,
+  calc_xcvc,
   card_pubkey_to_ident,
   force_bytes,
+  make_recoverable_sig,
+  none_hardened,
   path2str,
   pick_nonce,
   recover_address,
@@ -12,13 +18,11 @@ import {
   xor_bytes,
 } from './utils';
 
-import { SW_OKAY } from './constants';
 import base58 from 'bs58';
-import { hash160 } from './compat';
 
-// TODO: verify .get of the response object
+//TODO: verify .get of the response object
 
-// TODO: will update after nfc integration
+//TODO: will update after nfc integration
 function _send(cmd, args = {}) {
   let stat_word;
   let resp;
@@ -47,7 +51,7 @@ export class CKTapCard {
     if (stat_word !== SW_OKAY) {
       //  Assume error if ANY bad SW value seen; promote for debug purposes
       if (!resp['error']) {
-        resp['error'] = 'Got error SW value: 0x%04x' % stat_word;
+        resp['error'] = `Got error SW value: ${stat_word}`;
       }
       resp['stat_word'] = stat_word;
     }
@@ -60,9 +64,8 @@ export class CKTapCard {
     }
 
     if (raise_on_error && resp['error']) {
-      // TODO: implement resp.pop
-      const msg = resp.pop('error');
-      const code = resp.pop('code', 500);
+      const msg = resp['error'];
+      const code = resp['code'] || 500;
       throw new Error(`${code} on ${cmd}: ${msg}`);
     }
 
@@ -73,11 +76,11 @@ export class CKTapCard {
     // Call this at end of __init__ to load up details from card
     // - can be called multiple times
     const resp = this.send('status');
-    if (!resp['error'] === 1) {
+    if (resp['error']) {
       console.warn('Early filure');
       return;
     }
-    if (resp['proto'] === 1) {
+    if (resp['proto'] !== 1) {
       console.warn('Unknown card protocol version');
       return;
     }
@@ -89,11 +92,14 @@ export class CKTapCard {
     this.card_ident = card_pubkey_to_ident(this.card_pubkey);
 
     this.applet_version = resp['ver'];
-    this.birth_height = resp.get('birth', null);
-    this.is_testnet = resp.get('testnet', false);
-    this.auth_delay = resp.get('auth_delay', 0);
-    this.is_tapsigner = resp.get('tapsigner', false);
-    const { active_slot, num_slots } = resp.get('slots', (0, 1));
+    this.birth_height = resp['birth'] || null;
+    this.is_testnet = resp['testnet'] || false;
+    this.auth_delay = resp['auth_delay'] || 0;
+    this.is_tapsigner = resp['tapsigner'] || false;
+    const { active_slot, num_slots } = resp['slots'] || {
+      active_slot: 0,
+      num_slots: 1,
+    };
     this.active_slot = active_slot;
     this.num_slots = num_slots;
 
@@ -104,8 +110,7 @@ export class CKTapCard {
 
     // certs will not verify on emulator, and expensive to do more than once in
     // normal cases too
-    // TODO: this needs to be updated after communication is set
-    this._certs_checked = !!this.tr.is_emulator;
+    this._certs_checked = false;
   }
 
   send_auth(cmd, cvc, args = {}) {
@@ -119,8 +124,7 @@ export class CKTapCard {
       const { sk, ag } = calc_xcvc(cmd, this.card_nonce, this.card_pubkey, cvc);
       session_key = sk;
       auth_args = ag;
-      // TODO: implement args.update?
-      args.update(auth_args);
+      args = { ...args, ...auth_args };
     }
 
     // A few commands take an encrypted argument (most are returning encrypted
@@ -128,11 +132,11 @@ export class CKTapCard {
     if (cmd === 'sign') {
       args.digest = xor_bytes(args.digest, session_key);
     } else if (cmd == 'change') {
-      // TODO: slice check?
       args.data = xor_bytes(args.data, session_key.slice(0, args.data.length));
     }
     return { session_key, resp: this.send(cmd, args) };
   }
+
   address(faster = false, incl_pubkey = false, slot = null) {
     // Get current payment address for card
     // - does 100% full verification by default
@@ -179,7 +183,7 @@ export class CKTapCard {
       const my_nonce = pick_nonce();
       const card_nonce = this.card_nonce;
       const resp = this.send('derive', { nonce: my_nonce });
-      master_pub = verify_master_pubkey(
+      const master_pub = verify_master_pubkey(
         resp['master_pubkey'],
         resp['sig'],
         resp['chain_code'],
@@ -189,19 +193,15 @@ export class CKTapCard {
       const { derived_addr, _ } = verify_derive_address(
         resp['chain_code'],
         master_pub,
-        (testnet = this.is_testnet)
+        this.is_testnet
       );
       if (derived_addr != addr) {
-        // TODO: ValueError same as new Error?
+        //TODO: ValueError same as new Error?
         throw new Error('card did not derive address as expected');
       }
     }
 
-    if (incl_pubkey) {
-      return pubkey, addr;
-    }
-
-    return addr;
+    return { addr, pubkey: incl_pubkey ? pubkey : null };
   }
 
   get_derivation() {
@@ -226,12 +226,19 @@ export class CKTapCard {
     }
     const np = str2path(path);
 
+    if (np.length > DERIVE_MAX_BIP32_PATH_DEPTH) {
+      throw new Error(
+        `No more than ${DERIVE_MAX_BIP32_PATH_DEPTH} path components allowed.`
+      );
+    }
+
+    // TODO: check all_hardened
     if (!all_hardened(np)) {
-      // TODO: ValueError same as new Error?
+      //TODO: ValueError same as new Error?
       throw new Error('All path components must be hardened');
     }
 
-    const { _, resp } = this.send_auth('derive', cvc, {
+    const { session_key: _, resp } = this.send_auth('derive', cvc, {
       path: np,
       nonce: pick_nonce(),
     });
@@ -250,9 +257,10 @@ export class CKTapCard {
     if (!this.is_tapsigner) {
       return;
     }
-    const { _, resp } = this.send_auth('xpub', cvc, { master: true });
+    const { session_key: _, resp } = this.send_auth('xpub', cvc, {
+      master: true,
+    });
     const xpub = resp['xpub'];
-    // TODO: check that xpub slice is correct (syntax)
     // python: return hash160(xpub[-33:])[0:4]
     return hash160(xpub.slice(-33)).slice(0, 4);
   }
@@ -263,11 +271,12 @@ export class CKTapCard {
     if (!this.is_tapsigner) {
       return;
     }
-    const { _, resp } = this.send_auth('xpub', cvc, { master });
+    const { session_key: _, resp } = this.send_auth('xpub', cvc, { master });
     const xpub = resp['xpub'];
-    // TODO: check base58.decode (syntax)
+
+    // TODO: implement hash256
     // python: return base58.b58encode_check(xpub).decode('ascii')
-    return base58.decode(xpub);
+    return base58.encode(xpub + hash256(xpub).slice(0, 4));
   }
 
   make_backup(cvc) {
@@ -275,7 +284,7 @@ export class CKTapCard {
     if (!this.is_tapsigner) {
       return;
     }
-    const { _, resp } = this.send_auth('backup', cvc);
+    const { session_key: _, resp } = this.send_auth('backup', cvc);
     return resp['data'];
   }
 
@@ -321,7 +330,7 @@ export class CKTapCard {
     const target = this.active_slot;
 
     // but that slot must be used and sealed (note: unauthed req here)
-    const rr = this.send('dump', (slot = target));
+    const rr = this.send('dump', { slot: target });
 
     if (rr.get('sealed', null) == false) {
       console.warn(`Slot ${target} has already been unsealed.`);
@@ -333,8 +342,10 @@ export class CKTapCard {
       return;
     }
 
-    const { ses_key, resp } = this.send_auth('unseal', cvc, { slot: target });
-    pk = xor_bytes(ses_key, resp['privkey']);
+    const { session_key, resp } = this.send_auth('unseal', cvc, {
+      slot: target,
+    });
+    const pk = xor_bytes(session_key, resp['privkey']);
 
     return { pk, target };
   }
@@ -350,13 +361,13 @@ export class CKTapCard {
       return;
     }
 
-    const { ses_key, resp } = this.send_auth('dump', cvc, { slot });
+    const { session_key, resp } = this.send_auth('dump', cvc, { slot });
 
     if (!resp['privkey'])
       if (resp.get('used', null) == false) {
         console.warn(`That slot [${slot}] is not yet used (no key yet)`);
         return;
-      } else if (resp.get('sealed', None) == true) {
+      } else if (resp.get('sealed', null) == true) {
         console.warn(`That slot [${slot}] is not yet unsealed.`);
         return;
       } else {
@@ -364,7 +375,7 @@ export class CKTapCard {
         return;
       }
 
-    return xor_bytes(ses_key, resp['privkey']);
+    return xor_bytes(session_key, resp['privkey']);
   }
 
   get_slot_usage(slot, cvc = null) {
@@ -381,19 +392,18 @@ export class CKTapCard {
     if (resp.get('sealed', null) === true) {
       status = 'sealed';
       if (slot === this.active_slot) {
-        address = this.address((faster = true));
+        address = this.address(true);
       }
     } else if (resp.get('sealed', null) === false || 'privkey' in resp) {
       status = 'UNSEALED';
       if ('privkey' in resp) {
-        pk = xor_bytes(session_key, resp['privkey']);
+        const pk = xor_bytes(session_key, resp['privkey']);
         address = render_address(pk, this.is_testnet);
       }
     } else if (resp.get('used', null) === false) {
       status = 'unused';
     } else {
       // unreachable.
-      // TODO: make repr
       console.warn(JSON.stringify(resp));
       return;
     }
@@ -401,5 +411,67 @@ export class CKTapCard {
     address = address || resp.get('addr');
 
     return { address, status, resp };
+  }
+
+  sign_digest(cvc, slot, digest, subpath = null) {
+    /*
+        Sign 32 bytes digest and return 65 bytes long recoverable signature.
+
+        Uses derivation path based on current set derivation on card plus optional
+        subpath parameter which if provided, will be added to card derivation path.
+        Subpath can only be of length 2 and non-hardened components only.
+
+        Returns non-deterministic recoverable signature (header[1b], r[32b], s[32b])
+        */
+    if (digest.length !== 32) {
+      throw new Error('Digest must be exactly 32 bytes');
+    }
+    if (!this.is_tapsigner && subpath) {
+      throw new Error("Cannot use 'subpath' option for SATSCARD");
+    }
+    // subpath validation
+    const int_path = subpath !== null ? str2path(subpath) : [];
+    if (int_path.length > 2) {
+      throw new Error(`Length of path ${subpath} greater than 2`);
+    }
+    if (!none_hardened(int_path)) {
+      throw new Error(`Subpath ${subpath} contains hardened components`);
+    }
+    if (this.is_tapsigner) {
+      slot = 0;
+    }
+    for (_ in Array(5)) {
+      try {
+        const { session_key: _, resp } = this.send_auth('sign', cvc, {
+          slot,
+          digest,
+          subpath: this.is_tapsigner ? int_path : null,
+        });
+        const expect_pub = resp['pubkey'];
+        const sig = resp['sig'];
+        if (!CT_sig_verify(expect_pub, digest, sig)) {
+          continue;
+        }
+        const rec_sig = make_recoverable_sig(
+          digest,
+          sig,
+          null,
+          expect_pub,
+          this.is_testnet
+        );
+        return rec_sig;
+      } catch (err) {
+        if (err.code == 205) {
+          // unlucky number
+          // status to update card nonce
+          this.send('status');
+          continue;
+        }
+        throw new Error(err);
+      }
+    }
+    // probability that we get here is very close to zero
+    const msg = 'Failed to sign digest after 5 retries. Try again.';
+    throw new Error(`500 on sign: ${msg}`);
   }
 }

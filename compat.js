@@ -15,43 +15,43 @@ function hash160(args) {
 function CT_pick_keypair() {
   // return {priv, pub}
   let priv;
-  const compressed = true
+  const compressed = true;
   do {
-  priv = randomBytes(32)
-  } while (!secp256k1.privateKeyVerify(priv))
-  const pub = secp256k1.publicKeyCreate(priv, compressed)
+    priv = randomBytes(32);
+  } while (!secp256k1.privateKeyVerify(priv));
+  const pub = secp256k1.publicKeyCreate(priv, compressed);
 
-  return { priv, pub }
+  return { priv, pub };
 }
 
 function CT_priv_to_pubkey(priv) {
   // return compressed pubkey
-  const compressed = true
-  return secp256k1.publicKeyCreate(priv, compressed)
+  const compressed = true;
+  return secp256k1.publicKeyCreate(priv, compressed);
 }
 
 function CT_sig_verify(pub, msg_digest, sig) {
   // returns True or False
-  
-  return secp256k1.ecdsaVerify(sig, msg_digest, pub)
+
+  return secp256k1.ecdsaVerify(sig, msg_digest, pub);
 }
 
 function CT_sig_to_pubkey(msg_digest, sig) {
   // returns a pubkey (33 bytes)
-  
-  return secp256k1.ecdsaRecover(sig.signature, sig.recid, msg_digest)
+
+  return secp256k1.ecdsaRecover(sig.signature, sig.recid, msg_digest);
 }
 
 function CT_ecdh(his_pubkey, my_privkey) {
   // returns a 32-byte session key, which is sha256s(compressed point)
 
-  return secp256k1.ecdh(his_pubkey, my_privkey)
+  return secp256k1.ecdh(his_pubkey, my_privkey);
 }
 
 function CT_sign(privkey, msg_digest, recoverable = false) {
   // returns 64-byte sig
 
-  return secp256k1.ecdsaSign(msg_digest, privkey )
+  return secp256k1.ecdsaSign(msg_digest, privkey);
 }
 
 function CT_bip32_derive(chain_code, master_priv_pub, subkey_path) {
@@ -61,8 +61,8 @@ function CT_bip32_derive(chain_code, master_priv_pub, subkey_path) {
     // master_priv_pub :: private_key 
      master = bip32.fromPrivateKey(master_priv_pub, chain_code)
   } else {
-    // master_priv_pub :: public_key 
-     master = bip32.fromPublicKey(master_priv_pub, chain_code)
+    // master_priv_pub :: public_key
+    master = bip32.fromPublicKey(master_priv_pub, chain_code);
   }
 
   let node = master

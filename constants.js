@@ -49,8 +49,10 @@ export const FACTORY_ROOT_KEYS = {
 };
 
 //  our cards will provide this answer to reset (ATR)
-//  TODO: need to check decoding
-export const CARD_ATR = [59, 136, 128, 1].concat(decode('Coinkite')) + [49];
+//TODO: need to check decoding
+// this is not used yet in the js lib
+export const CARD_ATR =
+  [59, 136, 128, 1].concat(["'"].concat('Coinkite'.split())) + [49];
 //  pthyon implementation: CARD_ATR = [59, 136, 128, 1] + list(b'Coinkite') + [49]
 
 //  our Javacard applet has this APP ID
@@ -62,5 +64,8 @@ export const CBOR_INS = 0xcb;
 
 //  Correct ADPU response from all commands: 90 00
 export const SW_OKAY = 0x9000;
+
+//  path lengths (depth) is limited 8 components in derive command - check docs/limitations.md
+export const DERIVE_MAX_BIP32_PATH_DEPTH = 8;
 
 //  EOF

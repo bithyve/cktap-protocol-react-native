@@ -63,7 +63,7 @@ export const CBOR_CLA = 0x00;
 export const CBOR_INS = 0xcb;
 
 //  Correct ADPU response from all commands: 90 00
-export const SW_OKAY = 0x9000;
+export const SW_OKAY = '9000';
 
 //  path lengths (depth) is limited 8 components in derive command - check docs/limitations.md
 export const DERIVE_MAX_BIP32_PATH_DEPTH = 8;

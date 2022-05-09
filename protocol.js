@@ -9,12 +9,9 @@ import {
   none_hardened,
   path2str,
   pick_nonce,
-  recover_address,
   render_address,
   str2path,
   verify_certs,
-  verify_derive_address,
-  verify_master_pubkey,
   xor_bytes,
 } from './utils';
 
@@ -39,14 +36,15 @@ export class CKTapCard {
     this.is_testnet = null;
     this.auth_delay = null;
     this.is_tapsigner = null;
+    this.path = null;
   }
 
-  send(cmd, args = {}, raise_on_error = false) {
+  async send(cmd, args = {}, raise_on_error = false) {
     //  Send a command, get response, but also catch some card state
     //  changes and mirror them in our state.
     //  - command is a short string, such as "status"
     //  - see the protocol spec for arguments here
-    const { stat_word, resp } = _send(cmd, args);
+    const { stat_word, resp } = await _send(cmd, args);
 
     if (stat_word !== SW_OKAY) {
       //  Assume error if ANY bad SW value seen; promote for debug purposes
@@ -72,10 +70,10 @@ export class CKTapCard {
     return resp;
   }
 
-  first_look() {
+  async first_look() {
     // Call this at end of __init__ to load up details from card
     // - can be called multiple times
-    const resp = this.send('status');
+    const resp = await this.send('status');
     if (resp['error']) {
       console.warn('Early filure');
       return;
@@ -96,6 +94,7 @@ export class CKTapCard {
     this.is_testnet = resp['testnet'] || false;
     this.auth_delay = resp['auth_delay'] || 0;
     this.is_tapsigner = resp['tapsigner'] || false;
+    this.path = resp['path'] || null;
     const { active_slot, num_slots } = resp['slots'] || {
       active_slot: 0,
       num_slots: 1,
@@ -113,7 +112,7 @@ export class CKTapCard {
     this._certs_checked = false;
   }
 
-  send_auth(cmd, cvc, args = {}) {
+  async send_auth(cmd, cvc, args = {}) {
     // Take CVC and do ECDH crypto and provide the CVC in encrypted form
     // - returns session key and usual auth arguments needed
     // - skip if CVC is null and just do normal stuff (optional auth on some cmds)
@@ -134,10 +133,10 @@ export class CKTapCard {
     } else if (cmd == 'change') {
       args.data = xor_bytes(args.data, session_key.slice(0, args.data.length));
     }
-    return { session_key, resp: this.send(cmd, args) };
+    return { session_key, resp: await this.send(cmd, args) };
   }
 
-  address(faster = false, incl_pubkey = false, slot = null) {
+  async address(faster = false, incl_pubkey = false, slot = null) {
     // Get current payment address for card
     // - does 100% full verification by default
     // - returns a bech32 address as a string
@@ -150,7 +149,7 @@ export class CKTapCard {
       this.certificate_check();
     }
 
-    const st = this.send('status');
+    const st = await this.send('status');
     const cur_slot = st['slots'][0];
     if (slot === null) {
       slot = cur_slot;
@@ -163,7 +162,7 @@ export class CKTapCard {
 
     if (slot !== cur_slot) {
       // Use the unauthenticated "dump" command.
-      const rr = this.send('dump', (slot = slot));
+      const rr = await this.send('dump', (slot = slot));
       if (!incl_pubkey) {
         console.warn('can only get pubkey on current slot');
         return;
@@ -174,7 +173,7 @@ export class CKTapCard {
 
     // Use special-purpose "read" command
     const nonce = pick_nonce();
-    const rr = this.send('read', { nonce });
+    const rr = await this.send('read', { nonce });
 
     const { pubkey, addr } = recover_address(st, rr, nonce);
 
@@ -182,7 +181,7 @@ export class CKTapCard {
       // additional check: did card include chain_code in generated private key?
       const my_nonce = pick_nonce();
       const card_nonce = this.card_nonce;
-      const resp = this.send('derive', { nonce: my_nonce });
+      const resp = await this.send('derive', { nonce: my_nonce });
       const master_pub = verify_master_pubkey(
         resp['master_pubkey'],
         resp['sig'],
@@ -204,21 +203,22 @@ export class CKTapCard {
     return { addr, pubkey: incl_pubkey ? pubkey : null };
   }
 
-  get_derivation() {
+  async get_derivation() {
     // TAPSIGNER only: what's the current derivation path, which might be
     // just empty (aka 'm').
     if (!this.is_tapsigner) {
       return;
     }
-    const status = this.send('status');
-    const path = status.get('path', null);
+    const status = await this.send('status');
+    const path = status['path'];
     if (!path) {
-      throw new Error('No private key picked yet.');
+      console.warn('No private key picked yet.');
+      return;
     }
     return path2str(path);
   }
 
-  set_derivation(path, cvc) {
+  async set_derivation(path, cvc) {
     // TAPSIGNER only: what's the current derivation path, which might be
     // just empty (aka 'm').
     if (!this.is_tapsigner) {
@@ -238,7 +238,7 @@ export class CKTapCard {
       throw new Error('All path components must be hardened');
     }
 
-    const { session_key: _, resp } = this.send_auth('derive', cvc, {
+    const { session_key: _, resp } = await this.send_auth('derive', cvc, {
       path: np,
       nonce: pick_nonce(),
     });
@@ -252,12 +252,12 @@ export class CKTapCard {
     };
   }
 
-  get_xfp(cvc) {
+  async get_xfp(cvc) {
     // fetch master xpub, take pubkey from that and calc XFP
     if (!this.is_tapsigner) {
       return;
     }
-    const { session_key: _, resp } = this.send_auth('xpub', cvc, {
+    const { session_key: _, resp } = await this.send_auth('xpub', cvc, {
       master: true,
     });
     const xpub = resp['xpub'];
@@ -265,13 +265,15 @@ export class CKTapCard {
     return hash160(xpub.slice(-33)).slice(0, 4);
   }
 
-  get_xpub(cvc, master = false) {
+  async get_xpub(cvc, master = false) {
     // fetch XPUB, either derived or master one
     // - result is BIP-32 serialized and base58-check encoded
     if (!this.is_tapsigner) {
       return;
     }
-    const { session_key: _, resp } = this.send_auth('xpub', cvc, { master });
+    const { session_key: _, resp } = await this.send_auth('xpub', cvc, {
+      master,
+    });
     const xpub = resp['xpub'];
 
     // TODO: implement hash256
@@ -279,34 +281,33 @@ export class CKTapCard {
     return base58.encode(xpub + hash256(xpub).slice(0, 4));
   }
 
-  make_backup(cvc) {
+  async make_backup(cvc) {
     // read the backup file; gives ~100 bytes to be kept long term
     if (!this.is_tapsigner) {
       return;
     }
-    const { session_key: _, resp } = this.send_auth('backup', cvc);
+    const { session_key: _, resp } = await this.send_auth('backup', cvc);
     return resp['data'];
   }
 
-  change_cvc(old_cvc, new_cvc) {
+  async change_cvc(old_cvc, new_cvc) {
     // Change CVC. Note: can be binary or ascii or digits, 6..32 long
     if (new_cvc.length < 6 || new_cvc.length > 32) {
       console.warn('CVC must be 6..32 characters long');
       return;
     }
-    this.send_auth('change', old_cvc, { data: force_bytes(new_cvc) });
+    await this.send_auth('change', old_cvc, { data: force_bytes(new_cvc) });
   }
 
-  certificate_check() {
+  async certificate_check() {
     // Verify the certificate chain and the public key of the card
     // - assures this card was produced in Coinkite factory
     // - does not relate to payment addresses or slot usage
     // - raises on errors/failed validation
-    const status = this.send('status');
-    const certs = this.send('certs');
-
+    const status = await this.send('status');
+    const certs = await this.send('certs');
     const nonce = pick_nonce();
-    const check = this.send('check', { nonce });
+    const check = await this.send('check', { nonce });
 
     const rv = verify_certs(status, check, certs, nonce);
     this._certs_checked = true;
@@ -314,12 +315,12 @@ export class CKTapCard {
     return rv;
   }
 
-  get_status() {
+  async get_status() {
     // read current status
     return this.send('status');
   }
 
-  unseal_slot(cvc) {
+  async unseal_slot(cvc) {
     // Unseal the current slot (can only be one)
     // - returns (privkey, slot_num)
     if (this.is_tapsigner) {
@@ -330,7 +331,7 @@ export class CKTapCard {
     const target = this.active_slot;
 
     // but that slot must be used and sealed (note: unauthed req here)
-    const rr = this.send('dump', { slot: target });
+    const rr = await this.send('dump', { slot: target });
 
     if (rr.get('sealed', null) == false) {
       console.warn(`Slot ${target} has already been unsealed.`);
@@ -342,7 +343,7 @@ export class CKTapCard {
       return;
     }
 
-    const { session_key, resp } = this.send_auth('unseal', cvc, {
+    const { session_key, resp } = await this.send_auth('unseal', cvc, {
       slot: target,
     });
     const pk = xor_bytes(session_key, resp['privkey']);
@@ -350,18 +351,18 @@ export class CKTapCard {
     return { pk, target };
   }
 
-  get_nfc_url() {
+  async get_nfc_url() {
     // Provide the (dynamic) URL that you'd get if you tapped the card.
     return this.send('nfc').get('url');
   }
 
-  get_privkey(cvc, slot) {
+  async get_privkey(cvc, slot) {
     // Provide the private key of an already-unsealed slot (32 bytes)
     if (this.is_tapsigner) {
       return;
     }
 
-    const { session_key, resp } = this.send_auth('dump', cvc, { slot });
+    const { session_key, resp } = await this.send_auth('dump', cvc, { slot });
 
     if (!resp['privkey'])
       if (resp.get('used', null) == false) {
@@ -378,21 +379,21 @@ export class CKTapCard {
     return xor_bytes(session_key, resp['privkey']);
   }
 
-  get_slot_usage(slot, cvc = null) {
+  async get_slot_usage(slot, cvc = null) {
     // Get address and status for a slot, CVC is optional
     // returns:
     //   (address, status, detail_map)
     if (this.is_tapsigner) {
       return;
     }
-    const { session_key, resp } = this.send_auth('dump', cvc, { slot });
+    const { session_key, resp } = await this.send_auth('dump', cvc, { slot });
     let status;
     let address = resp.get('addr', null);
 
     if (resp.get('sealed', null) === true) {
       status = 'sealed';
       if (slot === this.active_slot) {
-        address = this.address(true);
+        address = await this.address(true);
       }
     } else if (resp.get('sealed', null) === false || 'privkey' in resp) {
       status = 'UNSEALED';
@@ -413,7 +414,7 @@ export class CKTapCard {
     return { address, status, resp };
   }
 
-  sign_digest(cvc, slot, digest, subpath = null) {
+  async sign_digest(cvc, slot, digest, subpath = null) {
     /*
         Sign 32 bytes digest and return 65 bytes long recoverable signature.
 
@@ -442,7 +443,7 @@ export class CKTapCard {
     }
     for (_ in Array(5)) {
       try {
-        const { session_key: _, resp } = this.send_auth('sign', cvc, {
+        const { session_key: _, resp } = await this.send_auth('sign', cvc, {
           slot,
           digest,
           subpath: this.is_tapsigner ? int_path : null,
@@ -464,7 +465,7 @@ export class CKTapCard {
         if (err.code == 205) {
           // unlucky number
           // status to update card nonce
-          this.send('status');
+          await this.send('status');
           continue;
         }
         throw new Error(err);
@@ -475,5 +476,3 @@ export class CKTapCard {
     throw new Error(`500 on sign: ${msg}`);
   }
 }
-
-module.exports = CKTapCard;

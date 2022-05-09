@@ -1,6 +1,5 @@
 import { ADDR_TRIM, CARD_NONCE_SIZE, USER_NONCE_SIZE } from './constants';
 import {
-  CT_bip32_derive,
   CT_ecdh,
   CT_pick_keypair,
   CT_priv_to_pubkey,
@@ -8,25 +7,28 @@ import {
   CT_sig_verify,
   hash160,
 } from './compat';
+import { bytesToHex, hexToBytes } from 'coinkite-tap-protocol-js/nfc/parser';
 
 import base32 from 'base32';
 import { bech32 } from 'bech32';
 
+const sha256 = require('js-sha256');
+
 function xor_bytes(a, b) {
-  if (typeof a === 'string' && typeof a === 'number') a.toString();
-  if (typeof b === 'string' && typeof b === 'number') b.toString();
   if (a.length == b.length) {
-    const buf1 = Buffer.from(a, 'hex');
-    const buf2 = Buffer.from(b, 'hex');
-    const bufResult = buf1.map((byte, i) => byte ^ buf2[i]);
-    return bufResult.toString('hex');
+    const bufResult = a.map((byte, i) => byte ^ b[i]);
+    return bufResult;
   }
+}
+
+function asciiEncode(str) {
+  return str.split('').map((c) => c.charCodeAt(0));
 }
 
 function randomStringGenerator(length) {
   const characters =
     'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = ' ';
+  let result = '';
   const charactersLength = characters.length;
   for (let i = 0; i < length; i++) {
     result += characters.charAt(Math.floor(Math.random() * charactersLength));
@@ -95,12 +97,12 @@ function card_pubkey_to_ident(card_pubkey) {
     throw new Error('expecting compressed pubkey');
   }
 
-  const md = base32.encode(sha256s(card_pubkey).slice(8));
-  let v;
+  const md = base32.encode(sha256(card_pubkey.slice(8)));
+  let v = '';
   for (i = 0; i < 20; i += 5) {
-    v = v + md.slice(i, i + 5) + '-';
+    v += md.slice(i, i + 5) + '-';
   }
-  return v;
+  return v.slice(0, -1);
 }
 
 function verify_certs(status_resp, check_resp, certs_resp, my_nonce) {
@@ -111,32 +113,27 @@ function verify_certs(status_resp, check_resp, certs_resp, my_nonce) {
   if (signatures.length < 2) {
     throw new Error('Signatures too small');
   }
-
   const r = status_resp;
   // TODO: verify if b'string' has some sp meaning in python
   const msg = 'OPENDIME' + r['card_nonce'] + my_nonce;
   if (msg.length !== 8 + CARD_NONCE_SIZE + USER_NONCE_SIZE) {
     throw new Error('Invalid message length');
   }
-
   const pubkey = r['pubkey'];
 
   // check card can sign with indicated key
-  const ok = CT_sig_verify(pubkey, sha256s(msg), check_resp['auth_sig']);
+  const ok = CT_sig_verify(pubkey, sha256(msg), check_resp['auth_sig']);
   if (!ok) {
     throw new Error('bad sig in verify_certs');
   }
-
   // follow certificate chain to factory root
   for (sig in signatures) {
-    pubkey = CT_sig_to_pubkey(sha256s(pubkey), sig);
+    pubkey = CT_sig_to_pubkey(sha256(pubkey), sig);
   }
-
   if (!FACTORY_ROOT_KEYS[pubkey]) {
     // fraudulent device
     throw new Error('Root cert is not from Coinkite. Card is counterfeit.');
   }
-
   return FACTORY_ROOT_KEYS[pubkey];
 }
 
@@ -158,8 +155,8 @@ function recover_pubkey(status_resp, read_resp, my_nonce, ses_key) {
   pubkey = pubkey.sloce(0, 1) + xor_bytes(pubkey.sloce(1), ses_key);
 
   // Critical: proves card knows key
-  // TODO: implement sha256s everywhere
-  const ok = CT_sig_verify(pubkey, sha256s(msg), read_resp['sig']);
+  // TODO: implement sha256 everywhere
+  const ok = CT_sig_verify(pubkey, sha256(msg), read_resp['sig']);
   if (!ok) {
     throw new Error('Bad sig in recover_pubkey');
   }
@@ -198,7 +195,7 @@ function recover_address(status_resp, read_resp, my_nonce) {
   const pubkey = read_resp['pubkey'];
 
   // Critical: proves card knows key
-  const ok = CT_sig_verify(pubkey, sha256s(msg), read_resp['sig']);
+  const ok = CT_sig_verify(pubkey, sha256(msg), read_resp['sig']);
   if (!ok) {
     console.warn('Bad sig in recover_address');
     return;
@@ -241,7 +238,7 @@ function verify_master_pubkey(pub, sig, chain_code, my_nonce, card_nonce) {
     return;
   }
 
-  const ok = CT_sig_verify(pub, sha256s(msg), sig);
+  const ok = CT_sig_verify(pub, sha256(msg), sig);
   if (!ok) {
     console.warn('verify_master_pubkey: bad sig in verify_master_pubkey');
     return;
@@ -262,14 +259,14 @@ function render_address(pubkey, testnet = false) {
   return bech32.encode(HRP, [hash160(pubkey)], 0);
 }
 
-function verify_derive_address(chain_code, master_pub, testnet = false) {
-  // # re-derive the address we should expect
-  // # - this is "m/0" in BIP-32 nomenclature
-  // # - accepts master public key (before unseal) or master private key (after)
-  const pubkey = CT_bip32_derive(chain_code, master_pub, [0]);
+// function verify_derive_address(chain_code, master_pub, testnet = false) {
+//   // # re-derive the address we should expect
+//   // # - this is "m/0" in BIP-32 nomenclature
+//   // # - accepts master public key (before unseal) or master private key (after)
+//   const pubkey = CT_bip32_derive(chain_code, master_pub, [0]);
 
-  return render_address(pubkey, (testnet = testnet)), pubkey;
-}
+//   return render_address(pubkey, (testnet = testnet)), pubkey;
+// }
 
 function make_recoverable_sig(
   digest,
@@ -333,14 +330,16 @@ function calc_xcvc(cmd, card_nonce, his_pubkey, cvc) {
   const { priv: my_privkey, pub: my_pubkey } = CT_pick_keypair();
 
   // standard ECDH
-  // - result is sha256s(compressed shared point (33 bytes))
+  // - result is sha256(compressed shared point (33 bytes))
   const session_key = CT_ecdh(his_pubkey, my_privkey);
-
-  const md = sha256s(card_nonce + cmd.encode('ascii'));
-  const mask = xor_bytes(session_key, md).slice(0, cvc.length);
+  const md = sha256(card_nonce + Buffer.from(asciiEncode(cmd)));
+  const mask = xor_bytes(session_key, hexToBytes(md.toString())).slice(
+    0,
+    cvc.length
+  );
   const xcvc = xor_bytes(cvc, mask);
 
-  return { sk: session_key, ag: { epubkey: my_pubkey, xcvc: xcvc } };
+  return { sk: session_key, ag: { epubkey: my_pubkey, xcvc } };
 }
 export {
   str2path,
@@ -358,5 +357,5 @@ export {
   make_recoverable_sig,
   verify_master_pubkey,
   card_pubkey_to_ident,
-  verify_derive_address,
+  // verify_derive_address,
 };

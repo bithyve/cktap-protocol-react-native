@@ -2,7 +2,7 @@
   "name": "coinkite-tap-protocol-js",
   "version": "0.0.1",
   "description": "coinkite's tap protocol to support Tapcards and Satcards in javascript",
-  "main": "protocol.js",
+  "main": "index.js",
   "scripts": {
     "prepare": "install-peers",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -18,14 +18,13 @@
   "dependencies": {
     "base32": "0.0.6",
     "bech32": "^2.0.0",
-    "bip32": "^3.0.1",
+    "bip32": "^2.0.6",
     "bs58": "^5.0.0",
     "cbor": "^8.1.0",
     "ecpair": "^2.0.1",
     "js-sha256": "^0.9.0",
     "ripemd160": "^2.0.2",
-    "secp256k1": "^4.0.3",
-    "tiny-secp256k1": "^2.2.1"
+    "secp256k1": "^4.0.3"
   },
   "peerDependencies": {
     "@craftzdog/react-native-buffer": "^6.0.4",

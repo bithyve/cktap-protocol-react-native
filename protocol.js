@@ -9,6 +9,7 @@ import {
   none_hardened,
   path2str,
   pick_nonce,
+  recover_address,
   render_address,
   str2path,
   verify_certs,
@@ -18,7 +19,8 @@ import {
 import base58 from 'bs58';
 import { send as transceive } from './nfc';
 
-//TODO: verify .get of the response object
+const sha256 = require('js-sha256');
+const { randomBytes } = require('crypto');
 
 //TODO: will update after nfc integration
 async function _send(cmd, args = {}) {
@@ -39,13 +41,12 @@ export class CKTapCard {
     this.path = null;
   }
 
-  async send(cmd, args = {}, raise_on_error = false) {
+  async send(cmd, args = {}, raise_on_error = true) {
     //  Send a command, get response, but also catch some card state
     //  changes and mirror them in our state.
     //  - command is a short string, such as "status"
     //  - see the protocol spec for arguments here
     const { stat_word, resp } = await _send(cmd, args);
-
     if (stat_word !== SW_OKAY) {
       //  Assume error if ANY bad SW value seen; promote for debug purposes
       if (!resp['error']) {
@@ -125,15 +126,15 @@ export class CKTapCard {
       auth_args = ag;
       args = { ...args, ...auth_args };
     }
-
     // A few commands take an encrypted argument (most are returning encrypted
     // results) and the caller didn't know the session key yet. So xor it for them.
     if (cmd === 'sign') {
       args.digest = xor_bytes(args.digest, session_key);
-    } else if (cmd == 'change') {
+    } else if (cmd === 'change') {
       args.data = xor_bytes(args.data, session_key.slice(0, args.data.length));
     }
-    return { session_key, resp: await this.send(cmd, args) };
+    const resp = await this.send(cmd, args);
+    return { session_key, resp };
   }
 
   async address(faster = false, incl_pubkey = false, slot = null) {
@@ -155,14 +156,15 @@ export class CKTapCard {
       slot = cur_slot;
     }
 
-    if (!st.addr && cur_slot == slot) {
+    if (!st.addr && cur_slot === slot) {
       //raise ValueError("Current slot is not yet setup.")
+      console.warn('Current slot is not yet setup.');
       return null;
     }
 
     if (slot !== cur_slot) {
       // Use the unauthenticated "dump" command.
-      const rr = await this.send('dump', (slot = slot));
+      const rr = await this.send('dump', { slot });
       if (!incl_pubkey) {
         console.warn('can only get pubkey on current slot');
         return;
@@ -234,7 +236,6 @@ export class CKTapCard {
 
     // TODO: check all_hardened
     if (!all_hardened(np)) {
-      //TODO: ValueError same as new Error?
       throw new Error('All path components must be hardened');
     }
 
@@ -308,7 +309,6 @@ export class CKTapCard {
     const certs = await this.send('certs');
     const nonce = pick_nonce();
     const check = await this.send('check', { nonce });
-
     const rv = verify_certs(status, check, certs, nonce);
     this._certs_checked = true;
 
@@ -333,12 +333,12 @@ export class CKTapCard {
     // but that slot must be used and sealed (note: unauthed req here)
     const rr = await this.send('dump', { slot: target });
 
-    if (rr.get('sealed', null) == false) {
+    if (rr['sealed'] === false) {
       console.warn(`Slot ${target} has already been unsealed.`);
       return;
     }
 
-    if (rr.get('sealed', null) != true) {
+    if (rr['sealed'] != true) {
       console.warn(`Slot ${target} has not been used yet.`);
       return;
     }
@@ -353,7 +353,8 @@ export class CKTapCard {
 
   async get_nfc_url() {
     // Provide the (dynamic) URL that you'd get if you tapped the card.
-    return this.send('nfc').get('url');
+    const { url } = await this.send('nfc_url');
+    return url;
   }
 
   async get_privkey(cvc, slot) {
@@ -365,10 +366,10 @@ export class CKTapCard {
     const { session_key, resp } = await this.send_auth('dump', cvc, { slot });
 
     if (!resp['privkey'])
-      if (resp.get('used', null) == false) {
+      if (resp['used'] === false) {
         console.warn(`That slot [${slot}] is not yet used (no key yet)`);
         return;
-      } else if (resp.get('sealed', null) == true) {
+      } else if (resp['sealed'] === true) {
         console.warn(`That slot [${slot}] is not yet unsealed.`);
         return;
       } else {
@@ -388,20 +389,20 @@ export class CKTapCard {
     }
     const { session_key, resp } = await this.send_auth('dump', cvc, { slot });
     let status;
-    let address = resp.get('addr', null);
+    let address = resp['addr'];
 
-    if (resp.get('sealed', null) === true) {
+    if (resp['sealed'] === true) {
       status = 'sealed';
       if (slot === this.active_slot) {
         address = await this.address(true);
       }
-    } else if (resp.get('sealed', null) === false || 'privkey' in resp) {
+    } else if (resp['sealed'] === false || resp['privkey']) {
       status = 'UNSEALED';
       if ('privkey' in resp) {
         const pk = xor_bytes(session_key, resp['privkey']);
         address = render_address(pk, this.is_testnet);
       }
-    } else if (resp.get('used', null) === false) {
+    } else if (resp['used'] === false) {
       status = 'unused';
     } else {
       // unreachable.
@@ -409,7 +410,7 @@ export class CKTapCard {
       return;
     }
 
-    address = address || resp.get('addr');
+    address = address || resp['addr'];
 
     return { address, status, resp };
   }
@@ -462,7 +463,7 @@ export class CKTapCard {
         );
         return rec_sig;
       } catch (err) {
-        if (err.code == 205) {
+        if (err.code === 205) {
           // unlucky number
           // status to update card nonce
           await this.send('status');
@@ -474,5 +475,73 @@ export class CKTapCard {
     // probability that we get here is very close to zero
     const msg = 'Failed to sign digest after 5 retries. Try again.';
     throw new Error(`500 on sign: ${msg}`);
+  }
+
+  async setup(cvc, chain_code = randomBytes(32), new_chain_code) {
+    let target;
+    if (this.is_tapsigner) {
+      target = 0;
+      if (!chain_code) {
+        new_chain_code = true;
+      }
+    } else {
+      target = this.active_slot;
+
+      const resp = await this.send('dump', { slot: target });
+      if (resp['used']) {
+        console.warn(
+          `Slot ${target} is already used. Unseal it, and move to next`
+        );
+        return;
+      }
+    }
+    const args = { slot: target };
+
+    if (chain_code && new_chain_code) {
+      console.warn('Provide a chain code or make me pick one, not both');
+    }
+    if (new_chain_code)
+      args['chain_code'] = sha256(sha256(crypto.randomBytes(128)));
+    else if (chain_code) {
+      try {
+        // chain_code = b2a_hex(chain_code);
+        if (chain_code.length !== 32) {
+          console.warn('Chain code must be exactly 32 bytes');
+          return;
+        }
+      } catch (e) {
+        console.warn('Need 64 hex digits (32 bytes) for chain code.');
+        return;
+      }
+      args['chain_code'] = chain_code;
+    } else if (target === 0) {
+      // not expected case since factory setup on slot zero
+      console.warn('Chain code required for slot zero setup');
+      return;
+    }
+    // TODO: impl cleanup_cvc
+    // cvc = cleanup_cvc(card, cvc);
+    try {
+      const { session_key: _, resp } = await this.send_auth('new', cvc, args);
+      if (this.is_tapsigner) {
+        console.log('TAPSIGNER ready for use');
+      } else {
+        console.log('SATSCARD ready for use');
+        // only one field: new slot number
+        this.active_slot = resp['slot'];
+        console.log(await this.address());
+      }
+    } catch (e) {
+      console.log(e);
+      console.log('card failed to setup');
+    }
+  }
+
+  async wait() {
+    for (var i = 0; i < 15; i++) {
+      try {
+        await this.send_auth('wait');
+      } catch (e) {}
+    }
   }
 }

@@ -1,5 +1,6 @@
 import { ADDR_TRIM, CARD_NONCE_SIZE, USER_NONCE_SIZE } from './constants';
 import {
+  CT_bip32_derive,
   CT_ecdh,
   CT_pick_keypair,
   CT_priv_to_pubkey,
@@ -7,67 +8,105 @@ import {
   CT_sig_verify,
   hash160,
 } from './compat';
-import { bytesToHex, hexToBytes } from 'coinkite-tap-protocol-js/nfc/parser';
 
 import base32 from 'base32';
 import { bech32 } from 'bech32';
+import { hexToBytes } from './nfc/parser';
+
+const { randomBytes } = require('crypto');
+
+var xor = require('buffer-xor');
 
 const sha256 = require('js-sha256');
 
-function xor_bytes(a, b) {
-  if (a.length == b.length) {
-    const bufResult = a.map((byte, i) => byte ^ b[i]);
-    return bufResult;
+function tou8(buf) {
+  if (!buf) return undefined;
+  if (buf.constructor.name === 'Uint8Array' || buf.constructor === Uint8Array) {
+    return buf;
   }
+  if (typeof buf === 'string') buf = Buffer(buf);
+  var a = new Uint8Array(buf.length);
+  for (var i = 0; i < buf.length; i++) a[i] = buf[i];
+  return a;
+}
+
+function xor_bytes(a, b) {
+  // TODO: xor two buffers
+  if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b)) {
+    console.warn('Type mismatch: Expected buffers at xor_bytes');
+    return;
+  }
+  if (a.length !== b.length) {
+    console.warn('Length mismatch: Expected same lengths at xor_bytes');
+    return;
+  }
+  return xor(a, b);
 }
 
 function asciiEncode(str) {
-  return str.split('').map((c) => c.charCodeAt(0));
-}
-
-function randomStringGenerator(length) {
-  const characters =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  const charactersLength = characters.length;
-  for (let i = 0; i < length; i++) {
-    result += characters.charAt(Math.floor(Math.random() * charactersLength));
-  }
-  return result;
+  return Buffer.from(str.split('').map((c) => c.charCodeAt(0)));
 }
 
 function pick_nonce() {
   const num_of_retry = 3;
   for (let i = 0; i < num_of_retry; i++) {
-    rv = randomStringGenerator(USER_NONCE_SIZE);
-    const rvSet = new Set(rv.split(''));
+    const rv = randomBytes(USER_NONCE_SIZE);
+    const rvSet = new Set(rv);
     if (rv[0] != rv[-1] || rvSet.length >= 2) return rv;
   }
 }
 
 const HARDENED = 0x8000_0000;
 
+function path_component_in_range(num) {
+  // cannot be less than 0
+  // cannot be more than (2 ** 31) - 1
+  if (0 <= num < HARDENED) {
+    return true;
+  }
+  return false;
+}
+
 function path2str(path) {
-  // take numeric path (list of numbers) and convert to human form
-  // - standardizing on "m/84h" style
-  temp = path.map((val) => {
-    String(val & ~HARDENED) + (val & HARDENED ? 'h' : '');
-  });
-  return ['m'].concat(temp).join('/');
+  const temp = [];
+  for (var i = 0; i < path.length; i += 1) {
+    var i = path[i];
+    temp.push((i & ~HARDENED).toString() + (i & HARDENED ? 'h' : ''));
+  }
+  return '/'.join(['m'] + temp);
 }
 
 function str2path(path) {
   // normalize notation and return numbers, no error checking
   let rv = [];
+  let here;
+  for (i in path.split('/')) {
+    if (i == 'm') {
+      continue;
+    }
+    if (!i) {
+      // trailing or duplicated slashes
+      continue;
+    }
 
-  pathArr = path.split('/');
-  for (const i of pathArr) {
-    if (i === 'm') continue;
-    if (!i) continue;
-    let here;
-    if (i[-1] in "p'h") here = parseInt(i.slice(0, -1), 0) | HARDENED;
-    else here = parseInt(i, 0);
-    rv.push(here);
+    if (i[-1] in "'phHP") {
+      if (i.length < 2) {
+        throw new Error(`Malformed bip32 path component: ${i}`);
+      }
+      const num = Number.parseInt(i.slice(0, -1), 0);
+      if (!path_component_in_range(num)) {
+        throw new Error(`Hardened path component out of range: ${i}`);
+      }
+      here = num | HARDENED;
+    } else {
+      here = Number.parseInt(i, 0);
+      if (!path_component_in_range(here)) {
+        // cannot be less than 0
+        // cannot be more than (2 ** 31) - 1
+        throw new Error(`Non-hardened path component out of range: ${i}`);
+      }
+    }
+    rv.concat(here);
   }
   return rv;
 }
@@ -115,14 +154,22 @@ function verify_certs(status_resp, check_resp, certs_resp, my_nonce) {
   }
   const r = status_resp;
   // TODO: verify if b'string' has some sp meaning in python
-  const msg = 'OPENDIME' + r['card_nonce'] + my_nonce;
+  const msg = Buffer.concat([
+    Buffer.from('OPENDIME'),
+    r['card_nonce'],
+    my_nonce,
+  ]);
   if (msg.length !== 8 + CARD_NONCE_SIZE + USER_NONCE_SIZE) {
     throw new Error('Invalid message length');
   }
   const pubkey = r['pubkey'];
 
   // check card can sign with indicated key
-  const ok = CT_sig_verify(pubkey, sha256(msg), check_resp['auth_sig']);
+  const ok = CT_sig_verify(
+    tou8(pubkey),
+    tou8(Buffer.from(sha256(msg))),
+    tou8(check_resp['auth_sig'])
+  );
   if (!ok) {
     throw new Error('bad sig in verify_certs');
   }
@@ -224,7 +271,7 @@ function recover_address(status_resp, read_resp, my_nonce) {
 function force_bytes(foo) {
   // convert strings to bytes where needed
   // TODO: verify Buffer implementation
-  return typeof foo == 'string' ? Buffer.from(foo, 'hex') : foo;
+  return typeof foo === 'string' ? Buffer.from(foo) : foo;
 }
 
 function verify_master_pubkey(pub, sig, chain_code, my_nonce, card_nonce) {
@@ -259,14 +306,14 @@ function render_address(pubkey, testnet = false) {
   return bech32.encode(HRP, [hash160(pubkey)], 0);
 }
 
-// function verify_derive_address(chain_code, master_pub, testnet = false) {
-//   // # re-derive the address we should expect
-//   // # - this is "m/0" in BIP-32 nomenclature
-//   // # - accepts master public key (before unseal) or master private key (after)
-//   const pubkey = CT_bip32_derive(chain_code, master_pub, [0]);
+function verify_derive_address(chain_code, master_pub, testnet = false) {
+  // # re-derive the address we should expect
+  // # - this is "m/0" in BIP-32 nomenclature
+  // # - accepts master public key (before unseal) or master private key (after)
+  const pubkey = CT_bip32_derive(chain_code, master_pub, [0]);
 
-//   return render_address(pubkey, (testnet = testnet)), pubkey;
-// }
+  return render_address(pubkey, (testnet = testnet)), pubkey;
+}
 
 function make_recoverable_sig(
   digest,
@@ -323,23 +370,19 @@ function calc_xcvc(cmd, card_nonce, his_pubkey, cvc) {
     console.warn('Invalid cvc length');
     return;
   }
-
   cvc = force_bytes(cvc);
-
   // fresh new ephemeral key for our side of connection
   const { priv: my_privkey, pub: my_pubkey } = CT_pick_keypair();
 
   // standard ECDH
   // - result is sha256(compressed shared point (33 bytes))
   const session_key = CT_ecdh(his_pubkey, my_privkey);
-  const md = sha256(card_nonce + Buffer.from(asciiEncode(cmd)));
-  const mask = xor_bytes(session_key, hexToBytes(md.toString())).slice(
-    0,
-    cvc.length
-  );
-  const xcvc = xor_bytes(cvc, mask);
+  const message = Buffer.concat([card_nonce, asciiEncode(cmd)]);
+  const md = sha256(message);
 
-  return { sk: session_key, ag: { epubkey: my_pubkey, xcvc } };
+  const mask = xor_bytes(session_key, hexToBytes(md)).slice(0, cvc.length);
+  const xcvc = xor_bytes(cvc, mask);
+  return { sk: session_key, ag: { epubkey: Buffer.from(my_pubkey), xcvc } };
 }
 export {
   str2path,
@@ -357,5 +400,5 @@ export {
   make_recoverable_sig,
   verify_master_pubkey,
   card_pubkey_to_ident,
-  // verify_derive_address,
+  verify_derive_address,
 };

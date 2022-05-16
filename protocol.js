@@ -1,4 +1,4 @@
-import { CT_sig_verify, hash160 } from './compat';
+import { CT_sig_verify, hash160, sha256s } from './compat';
 import { DERIVE_MAX_BIP32_PATH_DEPTH, SW_OKAY } from './constants';
 import {
   all_hardened,
@@ -15,11 +15,10 @@ import {
   verify_certs,
   xor_bytes,
 } from './utils';
+import { init, send as transceive } from './nfc';
 
 import base58 from 'bs58';
-import { send as transceive } from './nfc';
 
-const sha256 = require('js-sha256');
 const { randomBytes } = require('crypto');
 
 //TODO: will update after nfc integration
@@ -39,6 +38,20 @@ export class CKTapCard {
     this.auth_delay = null;
     this.is_tapsigner = null;
     this.path = null;
+  }
+
+  async initialise() {
+    const { response } = await init();
+
+    if (response['error']) {
+      const msg = response['error'];
+      const code = response['code'] || 500;
+      throw new Error(`${code} on ${cmd}: ${msg}`);
+    }
+
+    if (response.card_nonce) {
+      this.card_nonce = response['card_nonce'];
+    }
   }
 
   async send(cmd, args = {}, raise_on_error = true) {

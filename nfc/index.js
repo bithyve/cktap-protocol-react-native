@@ -9,7 +9,8 @@ async function init() {
       0x74, 0x65, 0x43, 0x41, 0x52, 0x44, 0x76, 0x31,
     ];
     const selectResponse = await NfcManager.isoDepHandler.transceive(selectApp);
-    console.log(decodeAndSplitResponse(selectResponse));
+    const { response, status } = decodeAndSplitResponse(selectResponse);
+    return { response, status };
   } catch (ex) {
     console.warn('Oops!', ex);
   }
@@ -18,15 +19,14 @@ async function init() {
 async function send(cmd, args = {}) {
   try {
     args.cmd = cmd;
-    await init();
     const bytes = cborEncode(args);
     const r = await NfcManager.isoDepHandler.transceive(bytes);
     const { response, status } = decodeAndSplitResponse(r);
-    await NfcManager.cancelTechnologyRequest();
+    // await NfcManager.cancelTechnologyRequest();
     return { response, status };
   } catch (ex) {
     console.log(ex);
   }
 }
 
-export { send };
+export { send, init };

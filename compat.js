@@ -3,6 +3,9 @@ const sha256 = require('js-sha256');
 const { randomBytes } = require('crypto');
 const secp256k1 = require('secp256k1');
 const bip32 = require('bip32');
+const base32 = require('buf-b32');
+
+import { tou8 } from './utils';
 
 function ripemd160(args = '') {
   return new RIPEMD160().update(args).digest('hex');
@@ -10,6 +13,15 @@ function ripemd160(args = '') {
 
 function hash160(args) {
   return ripemd160(sha256(args));
+}
+
+function sha256s(msg) {
+  var hash = sha256.create();
+  return hash.update(msg).digest();
+}
+
+function base32Encode(buff) {
+  return Buffer.from(base32.encode(tou8(buff)));
 }
 
 function CT_pick_keypair() {
@@ -73,7 +85,9 @@ function CT_bip32_derive(chain_code, master_priv_pub, subkey_path) {
 }
 
 module.exports = {
+  sha256s,
   hash160,
+  base32Encode,
   CT_pick_keypair,
   CT_priv_to_pubkey,
   CT_sig_verify,

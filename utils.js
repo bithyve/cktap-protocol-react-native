@@ -6,18 +6,17 @@ import {
   CT_priv_to_pubkey,
   CT_sig_to_pubkey,
   CT_sig_verify,
+  base32Encode,
   hash160,
+  sha256s,
 } from './compat';
 
-import base32 from 'base32';
 import { bech32 } from 'bech32';
 import { hexToBytes } from './nfc/parser';
 
 const { randomBytes } = require('crypto');
 
 var xor = require('buffer-xor');
-
-const sha256 = require('js-sha256');
 
 function tou8(buf) {
   if (!buf) return undefined;
@@ -45,6 +44,10 @@ function xor_bytes(a, b) {
 
 function asciiEncode(str) {
   return Buffer.from(str.split('').map((c) => c.charCodeAt(0)));
+}
+
+function asciiDecode(str) {
+  return str.split('').map((c) => String.fromCharCode(c));
 }
 
 function pick_nonce() {
@@ -135,8 +138,7 @@ function card_pubkey_to_ident(card_pubkey) {
     console.warn('expecting compressed pubkey');
     throw new Error('expecting compressed pubkey');
   }
-
-  const md = base32.encode(sha256(card_pubkey.slice(8)));
+  const md = base32Encode(sha256s(card_pubkey).slice(8));
   let v = '';
   for (i = 0; i < 20; i += 5) {
     v += md.slice(i, i + 5) + '-';
@@ -167,7 +169,7 @@ function verify_certs(status_resp, check_resp, certs_resp, my_nonce) {
   // check card can sign with indicated key
   const ok = CT_sig_verify(
     tou8(pubkey),
-    tou8(Buffer.from(sha256(msg))),
+    tou8(Buffer.from(sha256s(msg))),
     tou8(check_resp['auth_sig'])
   );
   if (!ok) {
@@ -175,7 +177,7 @@ function verify_certs(status_resp, check_resp, certs_resp, my_nonce) {
   }
   // follow certificate chain to factory root
   for (sig in signatures) {
-    pubkey = CT_sig_to_pubkey(sha256(pubkey), sig);
+    pubkey = CT_sig_to_pubkey(sha256s(pubkey), sig);
   }
   if (!FACTORY_ROOT_KEYS[pubkey]) {
     // fraudulent device
@@ -203,7 +205,7 @@ function recover_pubkey(status_resp, read_resp, my_nonce, ses_key) {
 
   // Critical: proves card knows key
   // TODO: implement sha256 everywhere
-  const ok = CT_sig_verify(pubkey, sha256(msg), read_resp['sig']);
+  const ok = CT_sig_verify(pubkey, sha256s(msg), read_resp['sig']);
   if (!ok) {
     throw new Error('Bad sig in recover_pubkey');
   }
@@ -242,7 +244,7 @@ function recover_address(status_resp, read_resp, my_nonce) {
   const pubkey = read_resp['pubkey'];
 
   // Critical: proves card knows key
-  const ok = CT_sig_verify(pubkey, sha256(msg), read_resp['sig']);
+  const ok = CT_sig_verify(pubkey, sha256s(msg), read_resp['sig']);
   if (!ok) {
     console.warn('Bad sig in recover_address');
     return;
@@ -285,7 +287,7 @@ function verify_master_pubkey(pub, sig, chain_code, my_nonce, card_nonce) {
     return;
   }
 
-  const ok = CT_sig_verify(pub, sha256(msg), sig);
+  const ok = CT_sig_verify(pub, sha256s(msg), sig);
   if (!ok) {
     console.warn('verify_master_pubkey: bad sig in verify_master_pubkey');
     return;
@@ -376,15 +378,18 @@ function calc_xcvc(cmd, card_nonce, his_pubkey, cvc) {
 
   // standard ECDH
   // - result is sha256(compressed shared point (33 bytes))
-  const session_key = CT_ecdh(his_pubkey, my_privkey);
-  const message = Buffer.concat([card_nonce, asciiEncode(cmd)]);
-  const md = sha256(message);
-
-  const mask = xor_bytes(session_key, hexToBytes(md)).slice(0, cvc.length);
+  const session_key = CT_ecdh(his_pubkey, tou8(my_privkey));
+  const message = Buffer.concat([Buffer.from(card_nonce), Buffer.from(cmd)]);
+  const md = sha256s(message);
+  const mask = xor_bytes(Buffer.from(session_key), Buffer.from(md)).slice(
+    0,
+    cvc.length
+  );
   const xcvc = xor_bytes(cvc, mask);
   return { sk: session_key, ag: { epubkey: Buffer.from(my_pubkey), xcvc } };
 }
 export {
+  tou8,
   str2path,
   path2str,
   xor_bytes,

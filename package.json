@@ -16,10 +16,10 @@
   "author": "Praneeth G",
   "license": "MIT",
   "dependencies": {
-    "base32": "0.0.6",
     "bech32": "^2.0.0",
     "bip32": "^2.0.6",
     "bs58": "^5.0.0",
+    "buf-b32": "^2.2.0",
     "buffer-xor": "^2.0.2",
     "cbor": "^8.1.0",
     "ecpair": "^2.0.1",

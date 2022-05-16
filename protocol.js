@@ -490,7 +490,7 @@ export class CKTapCard {
     throw new Error(`500 on sign: ${msg}`);
   }
 
-  async setup(cvc, chain_code = randomBytes(32), new_chain_code) {
+  async setup(cvc, chain_code, new_chain_code) {
     let target;
     if (this.is_tapsigner) {
       target = 0;
@@ -513,9 +513,9 @@ export class CKTapCard {
     if (chain_code && new_chain_code) {
       console.warn('Provide a chain code or make me pick one, not both');
     }
-    if (new_chain_code)
-      args['chain_code'] = sha256(sha256(crypto.randomBytes(128)));
-    else if (chain_code) {
+    if (new_chain_code) {
+      args['chain_code'] = sha256s(sha256s(randomBytes(128)));
+    } else if (chain_code) {
       try {
         // chain_code = b2a_hex(chain_code);
         if (chain_code.length !== 32) {

@@ -291,10 +291,11 @@ export class CKTapCard {
       master,
     });
     const xpub = resp['xpub'];
-
-    // TODO: implement hash256
     // python: return base58.b58encode_check(xpub).decode('ascii')
-    return base58.encode(xpub + hash256(xpub).slice(0, 4));
+    const xpubString = base58.encode(
+      Buffer.concat([xpub, Buffer.from(sha256s(sha256s(xpub))).slice(0, 4)])
+    );
+    return xpubString;
   }
 
   async make_backup(cvc) {

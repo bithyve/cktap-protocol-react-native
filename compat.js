@@ -12,12 +12,13 @@ function ripemd160(args = '') {
 }
 
 function hash160(args) {
-  return ripemd160(sha256(args));
+  return ripemd160(sha256s(args, true));
 }
 
-function sha256s(msg) {
+function sha256s(msg, hex = false) {
   var hash = sha256.create();
-  return hash.update(msg).digest();
+  const msg_digest = hash.update(msg).digest();
+  return hex ? msg_digest.toString('hex') : msg_digest;
 }
 
 function base32Encode(buff) {

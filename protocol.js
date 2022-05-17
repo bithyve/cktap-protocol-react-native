@@ -110,7 +110,7 @@ export class CKTapCard {
     this.is_testnet = resp['testnet'] || false;
     this.auth_delay = resp['auth_delay'] || 0;
     this.is_tapsigner = resp['tapsigner'] || false;
-    this.path = resp['path'] || null;
+    this.path = resp['path'] ? path2str(resp['path']) : null;
     const { active_slot, num_slots } = resp['slots'] || {
       active_slot: 0,
       num_slots: 1,

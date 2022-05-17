@@ -65,10 +65,10 @@ function path_component_in_range(num) {
 function path2str(path) {
   const temp = [];
   for (var i = 0; i < path.length; i += 1) {
-    var i = path[i];
-    temp.push((i & ~HARDENED).toString() + (i & HARDENED ? 'h' : ''));
+    var item = path[i];
+    temp.push((item & ~HARDENED).toString() + (item & HARDENED ? 'h' : ''));
   }
-  return '/'.join(['m'] + temp);
+  return ['m', ...temp].join('/');
 }
 
 function str2path(path) {

@@ -11,8 +11,8 @@ import {
   sha256s,
 } from './compat';
 
+import { FACTORY_ROOT_KEYS } from './constants';
 import { bech32 } from 'bech32';
-import { hexToBytes } from './nfc/parser';
 
 const { randomBytes } = require('crypto');
 
@@ -40,14 +40,6 @@ function xor_bytes(a, b) {
     return;
   }
   return xor(a, b);
-}
-
-function asciiEncode(str) {
-  return Buffer.from(str.split('').map((c) => c.charCodeAt(0)));
-}
-
-function asciiDecode(str) {
-  return str.split('').map((c) => String.fromCharCode(c));
 }
 
 function pick_nonce() {
@@ -167,23 +159,22 @@ function verify_certs(status_resp, check_resp, certs_resp, my_nonce) {
   const pubkey = r['pubkey'];
 
   // check card can sign with indicated key
-  const ok = CT_sig_verify(
-    tou8(pubkey),
-    tou8(Buffer.from(sha256s(msg))),
-    tou8(check_resp['auth_sig'])
-  );
+  const ok = CT_sig_verify(check_resp['auth_sig'], tou8(sha256s(msg)), pubkey);
   if (!ok) {
     throw new Error('bad sig in verify_certs');
   }
   // follow certificate chain to factory root
-  for (sig in signatures) {
-    pubkey = CT_sig_to_pubkey(sha256s(pubkey), sig);
+  let temp;
+  for (i in signatures) {
+    const signature = signatures[i];
+    temp = CT_sig_to_pubkey(Buffer.from(sha256s(pubkey)), signature);
   }
-  if (!FACTORY_ROOT_KEYS[pubkey]) {
+
+  if (!temp in FACTORY_ROOT_KEYS) {
     // fraudulent device
     throw new Error('Root cert is not from Coinkite. Card is counterfeit.');
   }
-  return FACTORY_ROOT_KEYS[pubkey];
+  return temp;
 }
 
 function recover_pubkey(status_resp, read_resp, my_nonce, ses_key) {
@@ -375,11 +366,10 @@ function calc_xcvc(cmd, card_nonce, his_pubkey, cvc) {
   cvc = force_bytes(cvc);
   // fresh new ephemeral key for our side of connection
   const { priv: my_privkey, pub: my_pubkey } = CT_pick_keypair();
-
   // standard ECDH
   // - result is sha256(compressed shared point (33 bytes))
   const session_key = CT_ecdh(his_pubkey, tou8(my_privkey));
-  const message = Buffer.concat([Buffer.from(card_nonce), Buffer.from(cmd)]);
+  const message = Buffer.concat([card_nonce, Buffer.from(cmd)]);
   const md = sha256s(message);
   const mask = xor_bytes(Buffer.from(session_key), Buffer.from(md)).slice(
     0,
@@ -388,6 +378,7 @@ function calc_xcvc(cmd, card_nonce, his_pubkey, cvc) {
   const xcvc = xor_bytes(cvc, mask);
   return { sk: session_key, ag: { epubkey: Buffer.from(my_pubkey), xcvc } };
 }
+
 export {
   tou8,
   str2path,

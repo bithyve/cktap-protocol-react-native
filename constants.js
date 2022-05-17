@@ -37,16 +37,16 @@ export const CARD_NONCE_SIZE = 16;
 export const USER_NONCE_SIZE = 16;
 
 //  published Coinkite factory root keys
-export const FACTORY_ROOT_KEYS = {
-  'Root Factory Certificate': hexStringToByteArray(
-    '03028a0e89e70d0ec0d932053a89ab1da7d9182bdc6d2f03e706ee99517d05d9e1'
+export const FACTORY_ROOT_KEYS = [
+  Buffer.from(
+    '03028a0e89e70d0ec0d932053a89ab1da7d9182bdc6d2f03e706ee99517d05d9e1',
+    'hex'
   ),
-
-  //  obsolete dev value, but keeping for a little while longer
-  'Root Factory Certificate (TESTING ONLY)': hexStringToByteArray(
-    '027722ef208e681bac05f1b4b3cc478d6bf353ac9a09ff0c843430138f65c27bab'
+  Buffer.from(
+    '027722ef208e681bac05f1b4b3cc478d6bf353ac9a09ff0c843430138f65c27bab',
+    'hex'
   ),
-};
+];
 
 //  our cards will provide this answer to reset (ATR)
 //TODO: need to check decoding
@@ -56,7 +56,7 @@ export const CARD_ATR =
 //  pthyon implementation: CARD_ATR = [59, 136, 128, 1] + list(b'Coinkite') + [49]
 
 //  our Javacard applet has this APP ID
-export const APP_ID = hexStringToByteArray('f0436f696e6b697465434152447631');
+export const APP_ID = Buffer.from('f0436f696e6b697465434152447631', 'hex');
 
 //  APDU CLA and INS fields for our one APDU, which uses CBOR data
 export const CBOR_CLA = 0x00;

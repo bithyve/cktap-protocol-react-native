@@ -52,6 +52,8 @@ export class CKTapCard {
     if (response.card_nonce) {
       this.card_nonce = response['card_nonce'];
     }
+
+    await this.first_look();
   }
 
   async send(cmd, args = {}, raise_on_error = true) {
@@ -514,7 +516,7 @@ export class CKTapCard {
       console.warn('Provide a chain code or make me pick one, not both');
     }
     if (new_chain_code) {
-      args['chain_code'] = sha256s(sha256s(randomBytes(128)));
+      args['chain_code'] = Buffer.from(sha256s(sha256s(randomBytes(128))));
     } else if (chain_code) {
       try {
         // chain_code = b2a_hex(chain_code);
@@ -556,5 +558,10 @@ export class CKTapCard {
         await this.send_auth('wait');
       } catch (e) {}
     }
+  }
+
+  async read(cvc) {
+    const res = await this.send_auth('read', cvc, { nonce: pick_nonce() });
+    console.log(res);
   }
 }

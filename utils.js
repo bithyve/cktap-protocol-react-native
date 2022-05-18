@@ -51,7 +51,7 @@ function pick_nonce() {
   }
 }
 
-const HARDENED = 0x8000_0000;
+const HARDENED = 0x80000000;
 
 function path_component_in_range(num) {
   // cannot be less than 0
@@ -75,48 +75,50 @@ function str2path(path) {
   // normalize notation and return numbers, no error checking
   let rv = [];
   let here;
-  for (i in path.split('/')) {
-    if (i == 'm') {
+  const splitArr = path.split('/');
+  for (i in splitArr) {
+    const item = splitArr[i];
+    if (item == 'm') {
       continue;
     }
-    if (!i) {
+    if (!item) {
       // trailing or duplicated slashes
       continue;
     }
 
-    if (i[-1] in "'phHP") {
-      if (i.length < 2) {
-        throw new Error(`Malformed bip32 path component: ${i}`);
+    if ("'phHP".includes(item[item.length - 1])) {
+      if (item.length < 2) {
+        throw new Error(`Malformed bip32 path component: ${item}`);
       }
-      const num = Number.parseInt(i.slice(0, -1), 0);
+      const num = Number.parseInt(item.slice(0, -1));
       if (!path_component_in_range(num)) {
-        throw new Error(`Hardened path component out of range: ${i}`);
+        throw new Error(`Hardened path component out of range: ${item}`);
       }
-      here = num | HARDENED;
+      here = (num | HARDENED) >>> 0;
     } else {
-      here = Number.parseInt(i, 0);
+      here = Number.parseInt(item);
       if (!path_component_in_range(here)) {
         // cannot be less than 0
         // cannot be more than (2 ** 31) - 1
-        throw new Error(`Non-hardened path component out of range: ${i}`);
+        throw new Error(`Non-hardened path component out of range: ${item}`);
       }
     }
-    rv.concat(here);
+    rv = rv.concat(here);
   }
+
   return rv;
 }
 
-// TODO: implement
-function all_hardened(path) {
-  for (i in path) {
-  }
-  return false;
+function all(itr) {
+  return itr.every((item) => !!item);
 }
-// TODO: implement
+
+//  predicates for numeric paths. stop giggling
+function all_hardened(path) {
+  return all(path.map((item) => !!(item & HARDENED)));
+}
 function none_hardened(path) {
-  for (i in path) {
-  }
-  return false;
+  return !all(path.map((item) => !!(item & HARDENED)));
 }
 
 function card_pubkey_to_ident(card_pubkey) {

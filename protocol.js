@@ -249,7 +249,6 @@ export class CKTapCard {
       );
     }
 
-    // TODO: check all_hardened
     if (!all_hardened(np)) {
       throw new Error('All path components must be hardened');
     }

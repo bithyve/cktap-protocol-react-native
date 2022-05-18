@@ -30,7 +30,6 @@ function tou8(buf) {
 }
 
 function xor_bytes(a, b) {
-  // TODO: xor two buffers
   if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b)) {
     console.warn('Type mismatch: Expected buffers at xor_bytes');
     return;
@@ -113,12 +112,16 @@ function all(itr) {
   return itr.every((item) => !!item);
 }
 
+function any(itr) {
+  return itr.some((item) => !!item);
+}
+
 //  predicates for numeric paths. stop giggling
 function all_hardened(path) {
   return all(path.map((item) => !!(item & HARDENED)));
 }
 function none_hardened(path) {
-  return !all(path.map((item) => !!(item & HARDENED)));
+  return !any(path.map((item) => !!(item & HARDENED)));
 }
 
 function card_pubkey_to_ident(card_pubkey) {
@@ -298,7 +301,7 @@ function render_address(pubkey, testnet = false) {
   const HRP = !testnet ? 'bc' : 'tb';
   // TODO: check bech32 implementation
   // python: bech32.encode(HRP, 0, hash160(pubkey));
-  return bech32.encode(HRP, [hash160(pubkey)], 0);
+  return bech32.encode(HRP, 0, [hash160(pubkey)]);
 }
 
 function verify_derive_address(chain_code, master_pub, testnet = false) {
@@ -313,9 +316,9 @@ function verify_derive_address(chain_code, master_pub, testnet = false) {
 function make_recoverable_sig(
   digest,
   sig,
-  addr = None,
-  expect_pubkey = None,
-  is_testnet = False
+  addr = null,
+  expect_pubkey = null,
+  is_testnet = false
 ) {
   // The card will only make non-recoverable signatures (64 bytes)
   // but we usually know the address which should be implied by
@@ -328,11 +331,11 @@ function make_recoverable_sig(
     throw new Error('Invalid sig length');
   }
 
-  for (rec_id in range(4)) {
+  for (rec_id in Array(4)) {
     // see BIP-137 for magic value "39"... perhaps not well supported tho
     let pubkey;
     try {
-      const rec_sig = bytes([39 + rec_id]) + sig;
+      const rec_sig = Buffer.concat(Buffer.from([39 + rec_id]) + sig);
       pubkey = CT_sig_to_pubkey(digest, rec_sig);
     } catch (e) {
       if (rec_id >= 2) {
@@ -370,13 +373,10 @@ function calc_xcvc(cmd, card_nonce, his_pubkey, cvc) {
   const { priv: my_privkey, pub: my_pubkey } = CT_pick_keypair();
   // standard ECDH
   // - result is sha256(compressed shared point (33 bytes))
-  const session_key = CT_ecdh(his_pubkey, tou8(my_privkey));
+  const session_key = Buffer.from(CT_ecdh(his_pubkey, tou8(my_privkey)));
   const message = Buffer.concat([card_nonce, Buffer.from(cmd)]);
   const md = sha256s(message);
-  const mask = xor_bytes(Buffer.from(session_key), Buffer.from(md)).slice(
-    0,
-    cvc.length
-  );
+  const mask = xor_bytes(session_key, Buffer.from(md)).slice(0, cvc.length);
   const xcvc = xor_bytes(cvc, mask);
   return { sk: session_key, ag: { epubkey: Buffer.from(my_pubkey), xcvc } };
 }

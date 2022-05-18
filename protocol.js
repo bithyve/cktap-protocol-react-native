@@ -123,9 +123,7 @@ export class CKTapCard {
       return;
     }
 
-    // certs will not verify on emulator, and expensive to do more than once in
-    // normal cases too
-    this._certs_checked = false;
+    return resp;
   }
 
   async send_auth(cmd, cvc, args = {}) {
@@ -146,7 +144,10 @@ export class CKTapCard {
     if (cmd === 'sign') {
       args.digest = xor_bytes(args.digest, session_key);
     } else if (cmd === 'change') {
-      args.data = xor_bytes(args.data, session_key.slice(0, args.data.length));
+      args.data = xor_bytes(
+        Buffer.from(args.data),
+        session_key.slice(0, args.data.length)
+      );
     }
     const resp = await this.send(cmd, args);
     return { session_key, resp };
@@ -156,13 +157,13 @@ export class CKTapCard {
     // Get current payment address for card
     // - does 100% full verification by default
     // - returns a bech32 address as a string
-    if (!this.is_tapsigner) {
+    if (this.is_tapsigner) {
       return;
     }
 
     // check certificate chain
     if (!this._certs_checked && !faster) {
-      this.certificate_check();
+      await this.certificate_check();
     }
 
     const st = await this.send('status');
@@ -258,6 +259,7 @@ export class CKTapCard {
       nonce: pick_nonce(),
     });
 
+    this.path = path;
     // XXX need FP of parent key and master (XFP)
     // XPUB would be better result here, but caller can use get_xpub() next
     return {
@@ -440,6 +442,7 @@ export class CKTapCard {
 
         Returns non-deterministic recoverable signature (header[1b], r[32b], s[32b])
         */
+    digest = Buffer.from(sha256s(digest));
     if (digest.length !== 32) {
       throw new Error('Digest must be exactly 32 bytes');
     }
@@ -457,7 +460,7 @@ export class CKTapCard {
     if (this.is_tapsigner) {
       slot = 0;
     }
-    for (_ in Array(5)) {
+    for (var i = 0; i < 4; i++) {
       try {
         const { session_key: _, resp } = await this.send_auth('sign', cvc, {
           slot,

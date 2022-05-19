@@ -1,5 +1,4 @@
-const CBOR = require('cbor');
-var Buffer = require('@craftzdog/react-native-buffer').Buffer;
+const CBOR = require('@ellipticoin/cbor');
 
 // transceive data format: CLA, INS, P1, P2, Data Len, Data (bytes array)
 export const cborEncode = (obj) => {
@@ -10,7 +9,7 @@ export const cborEncode = (obj) => {
 
 export const decodeAndSplitResponse = (r) => {
   return {
-    response: CBOR.decode(Buffer.from(r.slice(0, r.length - 2))),
+    response: CBOR.decode(Buffer.from(r)),
     status: bytesToHex(Buffer.from(r.slice(r.length - 2))),
   };
 };

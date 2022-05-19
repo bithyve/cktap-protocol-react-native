@@ -21,12 +21,10 @@ import base58 from 'bs58';
 
 const { randomBytes } = require('crypto');
 
-//TODO: will update after nfc integration
 async function _send(cmd, args = {}) {
   const { status: stat_word, response: resp } = await transceive(cmd, args);
   return { stat_word, resp };
 }
-
 export class CKTapCard {
   constructor() {
     this.card_nonce = null;
@@ -38,6 +36,7 @@ export class CKTapCard {
     this.auth_delay = null;
     this.is_tapsigner = null;
     this.path = null;
+    this.num_backups = null;
   }
 
   async initialise() {
@@ -82,7 +81,6 @@ export class CKTapCard {
       const code = resp['code'] || 500;
       throw new Error(`${code} on ${cmd}: ${msg}`);
     }
-
     return resp;
   }
 
@@ -111,6 +109,7 @@ export class CKTapCard {
     this.auth_delay = resp['auth_delay'] || 0;
     this.is_tapsigner = resp['tapsigner'] || false;
     this.path = resp['path'] ? path2str(resp['path']) : null;
+    this.num_backups = resp['num_backups'] || 0;
     const { active_slot, num_slots } = resp['slots'] || {
       active_slot: 0,
       num_slots: 1,
@@ -144,10 +143,7 @@ export class CKTapCard {
     if (cmd === 'sign') {
       args.digest = xor_bytes(args.digest, session_key);
     } else if (cmd === 'change') {
-      args.data = xor_bytes(
-        Buffer.from(args.data),
-        session_key.slice(0, args.data.length)
-      );
+      args.data = xor_bytes(args.data, session_key.slice(0, args.data.length));
     }
     const resp = await this.send(cmd, args);
     return { session_key, resp };
@@ -278,7 +274,7 @@ export class CKTapCard {
       master: true,
     });
     const xpub = resp['xpub'];
-    // python: return hash160(xpub[-33:])[0:4]
+    // TODO: check hash160
     return hash160(xpub.slice(-33)).slice(0, 4);
   }
 
@@ -314,7 +310,7 @@ export class CKTapCard {
       console.warn('CVC must be 6..32 characters long');
       return;
     }
-    await this.send_auth('change', old_cvc, { data: force_bytes(new_cvc) });
+    return this.send_auth('change', old_cvc, { data: force_bytes(new_cvc) });
   }
 
   async certificate_check() {
@@ -556,11 +552,7 @@ export class CKTapCard {
   }
 
   async wait() {
-    for (var i = 0; i < 15; i++) {
-      try {
-        await this.send_auth('wait');
-      } catch (e) {}
-    }
+    return this.send('wait');
   }
 
   async read(cvc) {

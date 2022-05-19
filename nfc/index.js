@@ -22,7 +22,6 @@ async function send(cmd, args = {}) {
     const bytes = cborEncode(args);
     const r = await NfcManager.isoDepHandler.transceive(bytes);
     const { response, status } = decodeAndSplitResponse(r);
-    // await NfcManager.cancelTechnologyRequest();
     return { response, status };
   } catch (ex) {
     console.log(ex);

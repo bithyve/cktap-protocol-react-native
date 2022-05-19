@@ -38,7 +38,7 @@ function xor_bytes(a, b) {
     console.warn('Length mismatch: Expected same lengths at xor_bytes');
     return;
   }
-  return xor(a, b);
+  return Buffer.from(xor(a, b));
 }
 
 function pick_nonce() {
@@ -197,7 +197,10 @@ function recover_pubkey(status_resp, read_resp, my_nonce, ses_key) {
 
   // have to decrypt pubkey
   let pubkey = read_resp['pubkey'];
-  pubkey = pubkey.sloce(0, 1) + xor_bytes(pubkey.sloce(1), ses_key);
+  pubkey = Buffer.concat([
+    pubkey.slice(0, 1),
+    xor_bytes(pubkey.sloce(1), ses_key),
+  ]);
 
   // Critical: proves card knows key
   // TODO: implement sha256 everywhere

@@ -26,7 +26,7 @@ function base32Encode(buff) {
 }
 
 function rec_id_from_header(header) {
-  const header_num = header & 0xff;
+  let header_num = header & 0xff;
   if (header_num >= 39) header_num -= 12;
   else if (header_num >= 35) header_num -= 8;
   else if (header_num >= 31) header_num -= 4;
@@ -54,7 +54,6 @@ function CT_priv_to_pubkey(priv) {
 
 function CT_sig_verify(sig, msg_digest, pub) {
   // returns True or False
-
   return secp256k1.ecdsaVerify(sig, msg_digest, pub);
 }
 
@@ -64,8 +63,7 @@ function CT_sig_to_pubkey(msg_digest, sig) {
   const header = sig.slice(0, 1)[0];
   const compact_sig = sig.slice(1);
   const rec_id = rec_id_from_header(header);
-  // const rec  = .ecdsa_recoverable_signature_parse_compact(compact_sig, rec_id)
-  // return secp256k1.ecdsaRecover(sig.signature, sig.recid, msg_digest);
+  return secp256k1.ecdsaRecover(compact_sig, rec_id, msg_digest);
 }
 
 function CT_ecdh(his_pubkey, my_privkey) {

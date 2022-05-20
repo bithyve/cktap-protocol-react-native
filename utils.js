@@ -152,7 +152,6 @@ function verify_certs(status_resp, check_resp, certs_resp, my_nonce) {
     throw new Error('Signatures too small');
   }
   const r = status_resp;
-  // TODO: verify if b'string' has some sp meaning in python
   const msg = Buffer.concat([
     Buffer.from('OPENDIME'),
     r['card_nonce'],
@@ -161,25 +160,24 @@ function verify_certs(status_resp, check_resp, certs_resp, my_nonce) {
   if (msg.length !== 8 + CARD_NONCE_SIZE + USER_NONCE_SIZE) {
     throw new Error('Invalid message length');
   }
-  const pubkey = r['pubkey'];
-
+  let pubkey = r['pubkey'];
   // check card can sign with indicated key
   const ok = CT_sig_verify(check_resp['auth_sig'], tou8(sha256s(msg)), pubkey);
   if (!ok) {
     throw new Error('bad sig in verify_certs');
   }
   // follow certificate chain to factory root
-  let temp;
   for (i in signatures) {
     const signature = signatures[i];
-    temp = CT_sig_to_pubkey(Buffer.from(sha256s(pubkey)), signature);
+    pubkey = CT_sig_to_pubkey(tou8(sha256s(pubkey)), signature);
   }
 
-  if (!temp in FACTORY_ROOT_KEYS) {
+  if (Buffer.compare(Buffer.from(pubkey), FACTORY_ROOT_KEYS[0])) {
     // fraudulent device
     throw new Error('Root cert is not from Coinkite. Card is counterfeit.');
   }
-  return temp;
+  console.log('Root cert is from Coinkite. Card is legit.');
+  return pubkey;
 }
 
 function recover_pubkey(status_resp, read_resp, my_nonce, ses_key) {
@@ -189,7 +187,6 @@ function recover_pubkey(status_resp, read_resp, my_nonce, ses_key) {
   if (!status_resp['tapsigner']) {
     throw new Error('Card is not a Tapsigner');
   }
-  // TODO: verify if b'string' has some sp meaning in python
   const msg = 'OPENDIME' + status_resp['card_nonce'] + my_nonce + bytes([0]);
   if (msg.length !== 8 + CARD_NONCE_SIZE + USER_NONCE_SIZE + 1) {
     throw new Error('Invalid message length');
@@ -203,7 +200,6 @@ function recover_pubkey(status_resp, read_resp, my_nonce, ses_key) {
   ]);
 
   // Critical: proves card knows key
-  // TODO: implement sha256 everywhere
   const ok = CT_sig_verify(pubkey, sha256s(msg), read_resp['sig']);
   if (!ok) {
     throw new Error('Bad sig in recover_pubkey');
@@ -334,7 +330,7 @@ function make_recoverable_sig(
     throw new Error('Invalid sig length');
   }
 
-  for (rec_id in Array(4)) {
+  for (var rec_id = 0; rec_id < 4; rec_id++) {
     // see BIP-137 for magic value "39"... perhaps not well supported tho
     let pubkey;
     try {

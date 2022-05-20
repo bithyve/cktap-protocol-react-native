@@ -122,7 +122,7 @@ export class CKTapCard {
       return;
     }
 
-    return resp;
+    return this;
   }
 
   async send_auth(cmd, cvc, args = {}) {
@@ -465,7 +465,7 @@ export class CKTapCard {
         });
         const expect_pub = resp['pubkey'];
         const sig = resp['sig'];
-        if (!CT_sig_verify(expect_pub, digest, sig)) {
+        if (!CT_sig_verify(sig, digest, expect_pub)) {
           continue;
         }
         const rec_sig = make_recoverable_sig(
@@ -556,7 +556,6 @@ export class CKTapCard {
   }
 
   async read(cvc) {
-    const res = await this.send_auth('read', cvc, { nonce: pick_nonce() });
-    console.log(res);
+    return this.send_auth('read', cvc, { nonce: pick_nonce() });
   }
 }

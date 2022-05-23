@@ -333,8 +333,9 @@ function make_recoverable_sig(
   for (var rec_id = 0; rec_id < 4; rec_id++) {
     // see BIP-137 for magic value "39"... perhaps not well supported tho
     let pubkey;
+    let rec_sig;
     try {
-      const rec_sig = Buffer.concat(Buffer.from([39 + rec_id]) + sig);
+      rec_sig = Buffer.concat([Buffer.from([39 + rec_id]), sig]);
       pubkey = CT_sig_to_pubkey(digest, rec_sig);
     } catch (e) {
       if (rec_id >= 2) {
@@ -342,7 +343,8 @@ function make_recoverable_sig(
         continue;
       }
     }
-    if (expect_pubkey && expect_pubkey != pubkey) {
+    //  Buffer.compare returns 0 if the buffers are equal
+    if (expect_pubkey && Buffer.compare(expect_pubkey, Buffer.from(pubkey))) {
       continue;
     }
     if (addr) {

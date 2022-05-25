@@ -227,10 +227,12 @@ function recover_address(status_resp, read_resp, my_nonce) {
   }
 
   const sl = status_resp['slots'][0];
-  // TODO: verify if b'string' has some sp meaning in python
-  // TODO: also veify BytesArray
-  const msg =
-    'OPENDIME' + status_resp['card_nonce'] + my_nonce + BytesArray(sl);
+  const msg = Buffer.concat([
+    Buffer.from('OPENDIME'),
+    status_resp['card_nonce'],
+    my_nonce,
+    Buffer.from(sl),
+  ]);
   if (msg.length !== 8 + CARD_NONCE_SIZE + USER_NONCE_SIZE + 32) {
     console.warn('recover_address: invalid message length');
     return;
@@ -267,15 +269,18 @@ function recover_address(status_resp, read_resp, my_nonce) {
 
 function force_bytes(foo) {
   // convert strings to bytes where needed
-  // TODO: verify Buffer implementation
   return typeof foo === 'string' ? Buffer.from(foo) : foo;
 }
 
 function verify_master_pubkey(pub, sig, chain_code, my_nonce, card_nonce) {
   // using signature response from 'deriv' command, recover the master pubkey
   // for this slot
-  // TODO: verify if b'string' has some sp meaning in python
-  const msg = 'OPENDIME' + card_nonce + my_nonce + chain_code;
+  const msg = Buffer.concat([
+    Buffer.from('OPENDIME'),
+    card_nonce,
+    my_nonce,
+    chain_code,
+  ]);
 
   if (msg.length !== 8 + CARD_NONCE_SIZE + USER_NONCE_SIZE + 32) {
     console.warn('verify_master_pubkey: invalid message length');

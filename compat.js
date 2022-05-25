@@ -59,7 +59,6 @@ function CT_sig_verify(sig, msg_digest, pub) {
 
 function CT_sig_to_pubkey(msg_digest, sig) {
   // returns a pubkey (33 bytes)
-  // TODO:
   const header = sig.slice(0, 1)[0];
   const compact_sig = sig.slice(1);
   const rec_id = rec_id_from_header(header);

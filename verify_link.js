@@ -61,8 +61,7 @@ function url_decoder(fragment) {
         throw new Error('Could not reconstruct card ident.');
       }
       return {
-        // TODO: check hex converision and bytes conversion
-        nonce: nonce.hex(),
+        nonce,
         card_ident: full_card_ident,
         virgin: urlParams['u'] == 'U',
         is_tapsigner: true,

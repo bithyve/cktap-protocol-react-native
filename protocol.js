@@ -206,7 +206,6 @@ export class CKTapCard {
         this.is_testnet
       );
       if (derived_addr != addr) {
-        //TODO: ValueError same as new Error?
         throw new Error('card did not derive address as expected');
       }
     }
@@ -534,8 +533,7 @@ export class CKTapCard {
       console.warn('Chain code required for slot zero setup');
       return;
     }
-    // TODO: impl cleanup_cvc
-    // cvc = cleanup_cvc(card, cvc);
+
     try {
       const { session_key: _, resp } = await this.send_auth('new', cvc, args);
       if (this.is_tapsigner) {

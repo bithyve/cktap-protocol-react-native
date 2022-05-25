@@ -109,11 +109,8 @@ export class CKTapCard {
     this.auth_delay = resp['auth_delay'] || 0;
     this.is_tapsigner = resp['tapsigner'] || false;
     this.path = resp['path'] ? path2str(resp['path']) : null;
-    this.num_backups = resp['num_backups'] || 0;
-    const { active_slot, num_slots } = resp['slots'] || {
-      active_slot: 0,
-      num_slots: 1,
-    };
+    this.num_backups = resp['num_backups'] || 'NA';
+    const [active_slot, num_slots] = resp['slots'] || [0, 1];
     this.active_slot = active_slot;
     this.num_slots = num_slots;
 
@@ -176,7 +173,7 @@ export class CKTapCard {
 
     if (slot !== cur_slot) {
       // Use the unauthenticated "dump" command.
-      const rr = await this.send('dump', { slot });
+      const rr = await this.send('dump', { slot: Number(slot) });
       if (!incl_pubkey) {
         console.warn('can only get pubkey on current slot');
         return;
@@ -376,7 +373,9 @@ export class CKTapCard {
       return;
     }
 
-    const { session_key, resp } = await this.send_auth('dump', cvc, { slot });
+    const { session_key, resp } = await this.send_auth('dump', cvc, {
+      slot: Number(slot),
+    });
 
     if (!resp['privkey'])
       if (resp['used'] === false) {
@@ -400,7 +399,9 @@ export class CKTapCard {
     if (this.is_tapsigner) {
       return;
     }
-    const { session_key, resp } = await this.send_auth('dump', cvc, { slot });
+    const { session_key, resp } = await this.send_auth('dump', cvc, {
+      slot: Number(slot),
+    });
     let status;
     let address = resp['addr'];
 

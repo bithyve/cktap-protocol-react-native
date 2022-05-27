@@ -208,32 +208,23 @@ function recover_pubkey(status_resp, read_resp, my_nonce, ses_key) {
   return pubkey;
 }
 
-const BytesArray = (str) => {
-  let bytes = [];
-  for (var i = 0; i < str.length; ++i) {
-    var code = str.charCodeAt(i);
-    bytes = bytes.concat([code]);
-  }
-  return bytes;
-};
-
 function recover_address(status_resp, read_resp, my_nonce) {
   // [SC] Given the response from "status" and "read" commands, and the
   // nonce we gave for read command, reconstruct the card's verified payment
   // address. Check prefix/suffix match what's expected
-  if (status_resp.get('tapsigner', false)) {
+  if (status_resp['tapsigner']) {
     console.warn('recover_address: tapsigner not supported');
     return;
   }
-
   const sl = status_resp['slots'][0];
   const msg = Buffer.concat([
     Buffer.from('OPENDIME'),
     status_resp['card_nonce'],
     my_nonce,
-    Buffer.from(sl),
+    Buffer.from([sl]),
   ]);
-  if (msg.length !== 8 + CARD_NONCE_SIZE + USER_NONCE_SIZE + 32) {
+
+  if (msg.length !== 8 + CARD_NONCE_SIZE + USER_NONCE_SIZE + 1) {
     console.warn('recover_address: invalid message length');
     return;
   }
@@ -241,23 +232,26 @@ function recover_address(status_resp, read_resp, my_nonce) {
   const pubkey = read_resp['pubkey'];
 
   // Critical: proves card knows key
-  const ok = CT_sig_verify(pubkey, sha256s(msg), read_resp['sig']);
+  const ok = CT_sig_verify(read_resp['sig'], Buffer.from(sha256s(msg)), pubkey);
   if (!ok) {
     console.warn('Bad sig in recover_address');
     return;
   }
 
   const expect = status_resp['addr'];
-  const left = expect.slice(0, expect.find('_'));
-  const right = expect.slice(expect.find('_') + 1);
+
+  const left = expect.slice(0, expect.indexOf('_'));
+  const right = expect.slice(expect.lastIndexOf('_') + 1);
 
   // Critical: counterfieting check
-  const addr = render_address(pubkey, status_resp.get('testnet', false));
+  const addr = render_address(pubkey, status_resp['tapsigner']);
+
   if (
     !(
-      addr.startswith(left) &&
-      addr.endswith(right) &&
-      (left.length == right.length) == ADDR_TRIM
+      addr.startsWith(left) &&
+      addr.endsWith(right) &&
+      left.length === right.length &&
+      left.length === ADDR_TRIM
     )
   ) {
     console.warn('Corrupt response');
@@ -287,7 +281,7 @@ function verify_master_pubkey(pub, sig, chain_code, my_nonce, card_nonce) {
     return;
   }
 
-  const ok = CT_sig_verify(pub, sha256s(msg), sig);
+  const ok = CT_sig_verify(sig, Buffer.from(sha256s(msg)), pub);
   if (!ok) {
     console.warn('verify_master_pubkey: bad sig in verify_master_pubkey');
     return;
@@ -301,11 +295,9 @@ function render_address(pubkey, testnet = false) {
   if (pubkey.length === 32)
     // actually a private key, convert
     pubkey = CT_priv_to_pubkey(pubkey);
-
   const HRP = !testnet ? 'bc' : 'tb';
-  // TODO: check bech32 implementation
-  // python: bech32.encode(HRP, 0, hash160(pubkey));
-  return bech32.encode(HRP, 0, [hash160(pubkey)]);
+  const words = bech32.toWords(hash160(pubkey));
+  return bech32.encode(HRP, [0].concat(words), 0);
 }
 
 function verify_derive_address(chain_code, master_pub, testnet = false) {
@@ -314,7 +306,7 @@ function verify_derive_address(chain_code, master_pub, testnet = false) {
   // # - accepts master public key (before unseal) or master private key (after)
   const pubkey = CT_bip32_derive(chain_code, master_pub, [0]);
 
-  return render_address(pubkey, (testnet = testnet)), pubkey;
+  return { derived_addr: render_address(pubkey, (testnet = testnet)), pubkey };
 }
 
 function make_recoverable_sig(

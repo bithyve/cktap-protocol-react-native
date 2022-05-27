@@ -33,7 +33,7 @@ async function send(cmd, args = {}) {
 }
 
 const getDelay = (cmd) => {
-  if (cmd === 'wait' || cmd === 'backup') {
+  if (cmd === 'wait' || cmd === 'backup' || cmd === 'new') {
     return 1000;
   } else {
     return 0;

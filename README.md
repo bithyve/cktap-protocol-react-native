@@ -51,7 +51,7 @@ transformer: {
 ## Peer dependencies
 [react-native-nfc-manager](https://github.com/revtel/react-native-nfc-manager) is used for the NFC communications with the cards. Please refer to their docs for nfc integration.
 
-# ~TDLR
+## ~TDLR
 
 1. add the post install script in your package.json
 `"postinstall": "rn-nodeify --install fs,dgram,process,path,console,crypto --hack"`  

@@ -13,6 +13,8 @@ import {
   render_address,
   str2path,
   verify_certs,
+  verify_derive_address,
+  verify_master_pubkey,
   xor_bytes,
 } from './utils';
 import { init, send as transceive } from './nfc';
@@ -271,7 +273,7 @@ export class CKTapCard {
     });
     const xpub = resp['xpub'];
     // TODO: check hash160
-    return hash160(xpub.slice(-33)).slice(0, 4);
+    return hash160(xpub.slice(-33));
   }
 
   async get_xpub(cvc, master = false) {
@@ -542,7 +544,7 @@ export class CKTapCard {
         console.log('SATSCARD ready for use');
         // only one field: new slot number
         this.active_slot = resp['slot'];
-        console.log(await this.address());
+        return this.address();
       }
     } catch (e) {
       console.log(e);

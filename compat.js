@@ -8,11 +8,11 @@ const base32 = require('buf-b32');
 import { tou8 } from './utils';
 
 function ripemd160(args = '') {
-  return new RIPEMD160().update(args).digest('hex');
+  return new RIPEMD160().update(args).digest();
 }
 
 function hash160(args) {
-  return ripemd160(sha256s(args, true));
+  return ripemd160(Buffer.from(sha256s(args)));
 }
 
 function sha256s(msg, hex = false) {

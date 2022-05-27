@@ -33,8 +33,10 @@ We suggest using [rn-nodify](https://github.com/tradle/rn-nodeify) to enable usi
 
 ## Metro Plugin
 rn-nodify needs stream-browserify for browser support.
-`//metro.cofig.js`
-`...
+
+`metro.cofig.js`
+```
+...
 resolver: {
     extraNodeModules: {
       stream: require.resolve('stream-browserify'),
@@ -43,19 +45,25 @@ resolver: {
 transformer: {
     ...
   },
-...`
+...
+```  
 
 ## Peer dependencies
 [react-native-nfc-manager](https://github.com/revtel/react-native-nfc-manager) is used for the NFC communications with the cards. Please refer to their docs for nfc integration.
 
-TDLR
-add the post install script in your package.json
-`"postinstall": "rn-nodeify --install fs,dgram,process,path,console,crypto --hack"`
+# ~TDLR
 
-`yarn add coinkite-tap-protocol rn-nodify stream-browserify react-native-nfc-manager`
+1. add the post install script in your package.json
+`"postinstall": "rn-nodeify --install fs,dgram,process,path,console,crypto --hack"`  
 
-`extraNodeModules: {
-      stream: require.resolve('stream-browserify'),
-  }` as metro config resolver
+2. install the required modules
+`yarn add coinkite-tap-protocol rn-nodify stream-browserify react-native-nfc-manager`  
 
+3. update metro config resolver
+```
+extraNodeModules: {
+    stream: require.resolve('stream-browserify'),
+}
+```
+4. install respoective cocopod dependencies
 `cd ios && pod install`

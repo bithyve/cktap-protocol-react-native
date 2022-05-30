@@ -272,7 +272,6 @@ export class CKTapCard {
       master: true,
     });
     const xpub = resp['xpub'];
-    // TODO: check hash160
     return hash160(xpub.slice(-33));
   }
 

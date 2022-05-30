@@ -1,21 +1,3 @@
-//check if there's a crypto-js equiv function to do this
-function hexStringToByteArray(hexString) {
-  if (hexString.length % 2 !== 0) {
-    throw 'Must have an even number of hex digits to convert to bytes';
-  } /* w w w.  jav  a2 s .  c o  m*/
-  var numBytes = hexString.length / 2;
-  var byteArray = new Uint8Array(numBytes);
-  for (var i = 0; i < numBytes; i++) {
-    byteArray[i] = parseInt(hexString.substr(i * 2, 2), 16);
-  }
-  return byteArray;
-}
-//
-//  (c) Copyright 2021 by Coinkite Inc. This file is covered by license found in COPYING-CC.
-//
-//  System constants.
-//
-
 //  Number of key slots in SATSCARD
 export const NUM_SLOTS = 10;
 
@@ -47,13 +29,6 @@ export const FACTORY_ROOT_KEYS = [
     'hex'
   ),
 ];
-
-//  our cards will provide this answer to reset (ATR)
-//TODO: need to check decoding
-// this is not used yet in the js lib
-export const CARD_ATR =
-  [59, 136, 128, 1].concat(["'"].concat('Coinkite'.split())) + [49];
-//  pthyon implementation: CARD_ATR = [59, 136, 128, 1] + list(b'Coinkite') + [49]
 
 //  our Javacard applet has this APP ID
 export const APP_ID = Buffer.from('f0436f696e6b697465434152447631', 'hex');

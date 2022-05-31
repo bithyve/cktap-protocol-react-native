@@ -95,7 +95,7 @@ function CT_bip32_derive(chain_code, master_priv_pub, subkey_path) {
   return node.publicKey;
 }
 
-module.exports = {
+export {
   sha256s,
   hash160,
   base32Encode,

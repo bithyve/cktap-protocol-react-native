@@ -1,5 +1,6 @@
 import { CT_sig_verify, hash160, sha256s } from './compat';
 import { DERIVE_MAX_BIP32_PATH_DEPTH, SW_OKAY } from './constants';
+import NfcManager, { NfcTech } from 'react-native-nfc-manager';
 import {
   all_hardened,
   calc_xcvc,
@@ -19,6 +20,7 @@ import {
 } from './utils';
 import { init, send as transceive } from './nfc';
 
+import { Platform } from 'react-native';
 import base58 from 'bs58';
 
 const { randomBytes } = require('crypto');
@@ -41,20 +43,36 @@ export class CKTapCard {
     this.num_backups = null;
   }
 
-  async initialise() {
-    const { response } = await init();
+  // wrap any number of logical commands or functions that need to run with this nfc wrapper
+  async nfcWrapper(callback) {
+    try {
+      const supported = await NfcManager.isSupported();
+      if (supported) {
+        await NfcManager.start();
+        await NfcManager.requestTechnology([NfcTech.IsoDep]);
+        await this.selectApp();
+        const resp = await callback();
+        if (Platform.OS === 'ios') {
+          await NfcManager.setAlertMessageIOS('Success');
+          await NfcManager.cancelTechnologyRequest();
+        }
+        return resp;
+      }
+    } catch (e) {
+      console.log(e);
+    }
+  }
 
+  async selectApp() {
+    const { response } = await init();
     if (response['error']) {
       const msg = response['error'];
       const code = response['code'] || 500;
       throw new Error(`${code} on ${cmd}: ${msg}`);
     }
-
     if (response.card_nonce) {
       this.card_nonce = response['card_nonce'];
     }
-
-    await this.first_look();
   }
 
   async send(cmd, args = {}, raise_on_error = true) {

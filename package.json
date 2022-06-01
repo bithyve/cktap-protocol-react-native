@@ -28,6 +28,7 @@
     "secp256k1": "^4.0.3"
   },
   "peerDependencies": {
+    "react-native": ">=0.60.0",
     "react-native-nfc-manager": ">=3.13.2"
   },
   "devDependencies": {

@@ -54,8 +54,8 @@ export class CKTapCard {
         const resp = await callback();
         if (Platform.OS === 'ios') {
           await NfcManager.setAlertMessageIOS('Success');
-          await NfcManager.cancelTechnologyRequest();
         }
+        await NfcManager.cancelTechnologyRequest();
         return resp;
       }
     } catch (e) {

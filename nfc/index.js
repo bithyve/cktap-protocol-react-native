@@ -1,6 +1,7 @@
 import { cborEncode, decodeAndSplitResponse } from './parser';
 
 import NfcManager from 'react-native-nfc-manager';
+import { Platform } from 'react-native';
 
 async function init() {
   try {
@@ -21,7 +22,7 @@ async function send(cmd, args = {}) {
     args.cmd = cmd;
     const bytes = cborEncode(args);
     const delay = getDelay(cmd);
-    delay && NfcManager.setTimeout(delay);
+    Platform.OS === 'android' && delay && NfcManager.setTimeout(delay);
     const r = await NfcManager.isoDepHandler.transceive(bytes);
     const { response, status } = decodeAndSplitResponse(r);
     return { response, status };

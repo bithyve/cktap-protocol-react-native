@@ -30,15 +30,13 @@ function url_decoder(fragment) {
     const nonce = Buffer.from(urlParams['n'], 'hex');
     const is_tapsigner = !!urlParams.get('t', false);
     if (nonce.length !== 8) {
-      console.warn('invalid nonce length');
-      return;
+      throw new Error('invalid nonce length');
     }
     const slot_num = parseInt(urlParams.get('o', -1));
     const addr = urlParams.get('r', null);
     const sig = Buffer.from(urlParams['s'], 'hex');
     if (nonce.length !== 64) {
-      console.warn('invalid sig length');
-      return;
+      throw new Error('invalid sig length');
     }
     const card_ident = urlParams.get('c', null);
 

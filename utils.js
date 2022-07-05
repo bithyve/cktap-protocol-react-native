@@ -31,12 +31,10 @@ function tou8(buf) {
 
 function xor_bytes(a, b) {
   if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b)) {
-    console.warn('Type mismatch: Expected buffers at xor_bytes');
-    return;
+    throw new Error('Type mismatch: Expected buffers at xor_bytes');
   }
   if (a.length !== b.length) {
-    console.warn('Length mismatch: Expected same lengths at xor_bytes');
-    return;
+    throw new Error('Length mismatch: Expected same lengths at xor_bytes');
   }
   return Buffer.from(xor(a, b));
 }
@@ -109,19 +107,19 @@ function str2path(path) {
 }
 
 function all(itr) {
-  return itr.every((item) => !!item);
+  return itr.every(item => !!item);
 }
 
 function any(itr) {
-  return itr.some((item) => !!item);
+  return itr.some(item => !!item);
 }
 
 //  predicates for numeric paths. stop giggling
 function all_hardened(path) {
-  return all(path.map((item) => !!(item & HARDENED)));
+  return all(path.map(item => !!(item & HARDENED)));
 }
 function none_hardened(path) {
-  return !any(path.map((item) => !!(item & HARDENED)));
+  return !any(path.map(item => !!(item & HARDENED)));
 }
 
 function card_pubkey_to_ident(card_pubkey) {
@@ -132,7 +130,6 @@ function card_pubkey_to_ident(card_pubkey) {
   // - insert dashes
   // - result is 23 chars long
   if (card_pubkey.length != 33) {
-    console.warn('expecting compressed pubkey');
     throw new Error('expecting compressed pubkey');
   }
   const md = base32Encode(sha256s(card_pubkey).slice(8));
@@ -213,8 +210,7 @@ function recover_address(status_resp, read_resp, my_nonce) {
   // nonce we gave for read command, reconstruct the card's verified payment
   // address. Check prefix/suffix match what's expected
   if (status_resp['tapsigner']) {
-    console.warn('recover_address: tapsigner not supported');
-    return;
+    throw new Error('recover_address: tapsigner not supported');
   }
   const sl = status_resp['slots'][0];
   const msg = Buffer.concat([
@@ -225,8 +221,7 @@ function recover_address(status_resp, read_resp, my_nonce) {
   ]);
 
   if (msg.length !== 8 + CARD_NONCE_SIZE + USER_NONCE_SIZE + 1) {
-    console.warn('recover_address: invalid message length');
-    return;
+    throw new Error('recover_address: invalid message length');
   }
 
   const pubkey = read_resp['pubkey'];
@@ -234,8 +229,7 @@ function recover_address(status_resp, read_resp, my_nonce) {
   // Critical: proves card knows key
   const ok = CT_sig_verify(read_resp['sig'], Buffer.from(sha256s(msg)), pubkey);
   if (!ok) {
-    console.warn('Bad sig in recover_address');
-    return;
+    throw new Error('Bad sig in recover_address');
   }
 
   const expect = status_resp['addr'];
@@ -254,8 +248,7 @@ function recover_address(status_resp, read_resp, my_nonce) {
       left.length === ADDR_TRIM
     )
   ) {
-    console.warn('Corrupt response');
-    return;
+    throw new Error('Corrupt response');
   }
 
   return { pubkey, addr };
@@ -277,14 +270,12 @@ function verify_master_pubkey(pub, sig, chain_code, my_nonce, card_nonce) {
   ]);
 
   if (msg.length !== 8 + CARD_NONCE_SIZE + USER_NONCE_SIZE + 32) {
-    console.warn('verify_master_pubkey: invalid message length');
-    return;
+    throw new Error('verify_master_pubkey: invalid message length');
   }
 
   const ok = CT_sig_verify(sig, Buffer.from(sha256s(msg)), pub);
   if (!ok) {
-    console.warn('verify_master_pubkey: bad sig in verify_master_pubkey');
-    return;
+    throw new Error('verify_master_pubkey: bad sig in verify_master_pubkey');
   }
 
   return pub;
@@ -363,8 +354,7 @@ function calc_xcvc(cmd, card_nonce, his_pubkey, cvc) {
   // - also picks an arbitrary keypair for my side of the ECDH?
   // - requires pubkey from card and proposed CVC value
   if (cvc.length < 6 || cvc.length > 32) {
-    console.warn('Invalid cvc length');
-    return;
+    throw new Error('Invalid cvc length');
   }
   cvc = force_bytes(cvc);
   // fresh new ephemeral key for our side of connection

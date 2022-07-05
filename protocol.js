@@ -109,15 +109,13 @@ export class CKTapCard {
     // - can be called multiple times
     const resp = await this.send('status');
     if (resp['error']) {
-      console.warn('Early filure');
-      return;
+      throw new Error('Early filure');
     }
     if (resp['proto'] !== 1) {
-      console.warn('Unknown card protocol version');
-      return;
+      throw new Error('Unknown card protocol version');
     }
     if (resp['tampered']) {
-      console.warn('WARNING: Card has set tampered flag!');
+      throw new Error('WARNING: Card has set tampered flag!');
     }
 
     this.card_pubkey = resp['pubkey'];
@@ -187,16 +185,14 @@ export class CKTapCard {
 
     if (!st.addr && cur_slot === slot) {
       //raise ValueError("Current slot is not yet setup.")
-      console.warn('Current slot is not yet setup.');
-      return null;
+      throw new Error('Current slot is not yet setup.');
     }
 
     if (slot !== cur_slot) {
       // Use the unauthenticated "dump" command.
       const rr = await this.send('dump', { slot: Number(slot) });
       if (!incl_pubkey) {
-        console.warn('can only get pubkey on current slot');
-        return;
+        throw new Error('can only get pubkey on current slot');
       } else {
         return rr['addr'];
       }
@@ -242,8 +238,7 @@ export class CKTapCard {
     const status = await this.send('status');
     const path = status['path'];
     if (!path) {
-      console.warn('No private key picked yet.');
-      return;
+      throw new Error('No private key picked yet.');
     }
     return path2str(path);
   }
@@ -322,8 +317,7 @@ export class CKTapCard {
   async change_cvc(old_cvc, new_cvc) {
     // Change CVC. Note: can be binary or ascii or digits, 6..32 long
     if (new_cvc.length < 6 || new_cvc.length > 32) {
-      console.warn('CVC must be 6..32 characters long');
-      return;
+      throw new Error('CVC must be 6 to 32 characters long');
     }
     return this.send_auth('change', old_cvc, { data: force_bytes(new_cvc) });
   }
@@ -362,13 +356,11 @@ export class CKTapCard {
     const rr = await this.send('dump', { slot: target });
 
     if (rr['sealed'] === false) {
-      console.warn(`Slot ${target} has already been unsealed.`);
-      return;
+      throw new Error(`Slot ${target} has already been unsealed.`);
     }
 
     if (rr['sealed'] != true) {
-      console.warn(`Slot ${target} has not been used yet.`);
-      return;
+      throw new Error(`Slot ${target} has not been used yet.`);
     }
 
     const { session_key, resp } = await this.send_auth('unseal', cvc, {
@@ -397,14 +389,11 @@ export class CKTapCard {
 
     if (!resp['privkey'])
       if (resp['used'] === false) {
-        console.warn(`That slot [${slot}] is not yet used (no key yet)`);
-        return;
+        throw new Error(`That slot [${slot}] is not yet used (no key yet)`);
       } else if (resp['sealed'] === true) {
-        console.warn(`That slot [${slot}] is not yet unsealed.`);
-        return;
+        throw new Error(`That slot [${slot}] is not yet unsealed.`);
       } else {
-        console.warn(`Not sure of the key for that slot (${slot}).`);
-        return;
+        throw new Error(`Not sure of the key for that slot (${slot}).`);
       }
 
     return xor_bytes(session_key, resp['privkey']);
@@ -438,8 +427,7 @@ export class CKTapCard {
       status = 'unused';
     } else {
       // unreachable.
-      console.warn(JSON.stringify(resp));
-      return;
+      throw new Error(JSON.stringify(resp));
     }
 
     address = address || resp['addr'];
@@ -495,14 +483,14 @@ export class CKTapCard {
           this.is_testnet
         );
         return rec_sig;
-      } catch (err) {
-        if (err.code === 205) {
+      } catch (error) {
+        if (error.code === 205) {
           // unlucky number
           // status to update card nonce
           await this.send('status');
           continue;
         }
-        throw new Error(err);
+        throw new Error(error);
       }
     }
     // probability that we get here is very close to zero
@@ -522,16 +510,15 @@ export class CKTapCard {
 
       const resp = await this.send('dump', { slot: target });
       if (resp['used']) {
-        console.warn(
+        throw new Error(
           `Slot ${target} is already used. Unseal it, and move to next`
         );
-        return;
       }
     }
     const args = { slot: target };
 
     if (chain_code && new_chain_code) {
-      console.warn('Provide a chain code or make me pick one, not both');
+      throw new Error('Provide a chain code or make me pick one, not both');
     }
     if (new_chain_code) {
       args['chain_code'] = Buffer.from(sha256s(sha256s(randomBytes(128))));
@@ -539,18 +526,15 @@ export class CKTapCard {
       try {
         // chain_code = b2a_hex(chain_code);
         if (chain_code.length !== 32) {
-          console.warn('Chain code must be exactly 32 bytes');
-          return;
+          throw new Error('Chain code must be exactly 32 bytes');
         }
       } catch (e) {
-        console.warn('Need 64 hex digits (32 bytes) for chain code.');
-        return;
+        throw new Error('Need 64 hex digits (32 bytes) for chain code.');
       }
       args['chain_code'] = chain_code;
     } else if (target === 0) {
       // not expected case since factory setup on slot zero
-      console.warn('Chain code required for slot zero setup');
-      return;
+      throw new Error('Chain code required for slot zero setup');
     }
 
     try {

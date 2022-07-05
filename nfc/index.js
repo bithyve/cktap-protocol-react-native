@@ -12,8 +12,8 @@ async function init() {
     const selectResponse = await NfcManager.isoDepHandler.transceive(selectApp);
     const { response, status } = decodeAndSplitResponse(selectResponse);
     return { response, status };
-  } catch (ex) {
-    console.warn('Oops!', ex);
+  } catch (error) {
+    throw new Error('Initialisation failed', error);
   }
 }
 
@@ -26,12 +26,12 @@ async function send(cmd, args = {}) {
     const r = await NfcManager.isoDepHandler.transceive(bytes);
     const { response, status } = decodeAndSplitResponse(r);
     return { response, status };
-  } catch (ex) {
-    console.log(ex);
+  } catch (error) {
+    console.log(error);
   }
 }
 
-const getDelay = (cmd) => {
+const getDelay = cmd => {
   if (cmd === 'wait' || cmd === 'backup' || cmd === 'new') {
     return 1000;
   } else {

@@ -89,7 +89,7 @@ function CT_bip32_derive(chain_code, master_priv_pub, subkey_path) {
   }
 
   let node = master;
-  subkey_path.forEach((index) => {
+  subkey_path.forEach(index => {
     node = node.derive(index);
   });
   return node.publicKey;

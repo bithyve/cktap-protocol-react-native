@@ -445,7 +445,7 @@ export class CKTapCard {
 
         Returns non-deterministic recoverable signature (header[1b], r[32b], s[32b])
         */
-    digest = Buffer.from(sha256s(digest));
+    //  Expects the digest to be 32 bit Buffer and parsed by the wallet
     if (digest.length !== 32) {
       throw new Error('Digest must be exactly 32 bytes');
     }

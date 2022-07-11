@@ -27,7 +27,7 @@ async function send(cmd, args = {}) {
     const { response, status } = decodeAndSplitResponse(r);
     return { response, status };
   } catch (error) {
-    console.log(error);
+    throw error;
   }
 }
 

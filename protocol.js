@@ -59,7 +59,18 @@ export class CKTapCard {
         return resp;
       }
     } catch (e) {
-      console.log(e);
+      if (Platform.OS === 'ios') {
+        NfcManager.setAlertMessageIOS('Something went wrong!');
+      }
+      NfcManager.cancelTechnologyRequest();
+      if (
+        ['Error: transceive fail', 'Error: Initialisation failed'].includes(
+          e.toString()
+        )
+      ) {
+        throw new Error(`[NFC] Please hold the card more stably or longer`);
+      }
+      throw e;
     }
   }
 

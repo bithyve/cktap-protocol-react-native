@@ -68,7 +68,7 @@ export class CKTapCard {
           e.toString()
         )
       ) {
-        throw new Error(`[NFC] Please hold the card more stably or longer`);
+        throw new Error(`Please hold the card more stably or longer`);
       }
       throw e;
     }
@@ -296,7 +296,7 @@ export class CKTapCard {
       master: true,
     });
     const xpub = resp['xpub'];
-    return hash160(xpub.slice(-33));
+    return hash160(xpub.slice(-33)).slice(0, 4);
   }
 
   async get_xpub(cvc, master = false) {
@@ -552,6 +552,7 @@ export class CKTapCard {
       const { session_key: _, resp } = await this.send_auth('new', cvc, args);
       if (this.is_tapsigner) {
         console.log('TAPSIGNER ready for use');
+        return this;
       } else {
         console.log('SATSCARD ready for use');
         // only one field: new slot number
@@ -559,8 +560,8 @@ export class CKTapCard {
         return this.address();
       }
     } catch (e) {
-      console.log(e);
       console.log('card failed to setup');
+      throw e;
     }
   }
 

@@ -24,11 +24,6 @@ test('btc_primitives', () => {
   expect(s1.signature).toHaveLength(64);
   expect(primitives.CT_sig_verify(s1.signature, md, pub)).toBeTruthy();
 
-  // const s2 = primitives.CT_sign(priv, md, true)
-  // expect(s2.signature).toHaveLength(65);
-  // const chk = primitives.CT_sig_to_pubkey(md, s2)
-  // expect(chk).toBe(pub);
-
   const got = primitives.CT_bip32_derive(
     Buffer.alloc(32, 'c'),
     Buffer.alloc(33, 2),
@@ -45,4 +40,36 @@ test('btc_primitives', () => {
   expect(Buffer.from(ss).toString('hex')).toBe(
     '104c5ef46959013cc52a2e6a5acc26b937f7cf910f0d804f7bf278ef1eb2d9ed'
   );
+});
+
+test('UInt8ArrayConversion', () => {
+  const buf = Buffer.from([0, 1, 2, 3, 4]);
+  let u8 = new Uint8Array(buf.length);
+  for (var i = 0; i < buf.length; i++) {
+    u8[i] = buf[i];
+  }
+  expect(utils.tou8(buf)).toEqual(u8);
+  expect(utils.tou8(null)).toBeFalsy();
+  expect(utils.tou8(u8)).toEqual(u8);
+});
+
+test('nonceGeneration', () => {
+  const nonce = utils.pick_nonce();
+  expect(nonce).toHaveLength(constants.USER_NONCE_SIZE);
+  expect(nonce).toBeInstanceOf(Buffer);
+  expect(new Set(nonce).size).toBeGreaterThan(2);
+});
+
+test('sessionKeyVerification', () => {
+  const { pub } = primitives.CT_pick_keypair();
+  const nonce = utils.pick_nonce();
+  const { ag, sk } = utils.calc_xcvc('test', nonce, pub, '123456');
+  expect(ag).toHaveProperty('epubkey');
+  expect(ag).toHaveProperty('xcvc');
+  expect(sk).toBeInstanceOf(Buffer);
+  expect(sk).toHaveLength(32);
+  expect(ag.xcvc).toBeInstanceOf(Buffer);
+  expect(ag.xcvc).toHaveLength(6);
+  expect(ag.epubkey).toBeInstanceOf(Buffer);
+  expect(ag.epubkey).toHaveLength(33);
 });

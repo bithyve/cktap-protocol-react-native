@@ -3,9 +3,10 @@
   "version": "0.0.1",
   "description": "coinkite's tap protocol to support Tapcards and Satcards in javascript",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "prepare": "install-peers",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
   },
   "keywords": [
     "coinkite_tap_protocol-js",
@@ -32,6 +33,7 @@
     "react-native-nfc-manager": ">=3.13.2"
   },
   "devDependencies": {
-    "install-peers-cli": "^2.2.0"
+    "install-peers-cli": "^2.2.0",
+    "jest": "^28.1.3"
   }
 }

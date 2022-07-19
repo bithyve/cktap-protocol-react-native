@@ -13,10 +13,8 @@ import {
 
 import { FACTORY_ROOT_KEYS } from './constants';
 import { bech32 } from 'bech32';
-
-const { randomBytes } = require('crypto');
-
-var xor = require('buffer-xor');
+import { randomBytes } from 'crypto';
+import xor from 'buffer-xor';
 
 function tou8(buf) {
   if (!buf) return undefined;

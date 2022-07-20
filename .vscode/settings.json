@@ -4,5 +4,9 @@
   },
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true,
-  "colorize.languages": ["javascript", "typescript"]
+  "colorize.languages": ["javascript", "typescript"],
+  "javascript.preferences.quoteStyle": "single",
+  "typescript.preferences.quoteStyle": "single",
+  "prettier.jsxSingleQuote": true,
+  "prettier.singleQuote": true
 }

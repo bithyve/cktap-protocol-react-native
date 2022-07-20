@@ -13,19 +13,21 @@ import {
 
 import { FACTORY_ROOT_KEYS } from './constants';
 import { bech32 } from 'bech32';
-
-const { randomBytes } = require('crypto');
-
-var xor = require('buffer-xor');
+import { randomBytes } from 'crypto';
+import xor from 'buffer-xor';
 
 function tou8(buf) {
   if (!buf) return undefined;
   if (buf.constructor.name === 'Uint8Array' || buf.constructor === Uint8Array) {
     return buf;
   }
-  if (typeof buf === 'string') buf = Buffer(buf);
+  if (typeof buf === 'string') {
+    buf = Buffer(buf);
+  }
   var a = new Uint8Array(buf.length);
-  for (var i = 0; i < buf.length; i++) a[i] = buf[i];
+  for (var i = 0; i < buf.length; i++) {
+    a[i] = buf[i];
+  }
   return a;
 }
 

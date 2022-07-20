@@ -1,10 +1,9 @@
-const RIPEMD160 = require('ripemd160');
-const sha256 = require('js-sha256');
-const { randomBytes } = require('crypto');
-const secp256k1 = require('secp256k1');
-const bip32 = require('bip32');
-const base32 = require('buf-b32');
-
+import RIPEMD160 from 'ripemd160';
+import base32 from 'buf-b32';
+import bip32 from 'bip32';
+import { randomBytes } from 'crypto';
+import secp256k1 from 'secp256k1';
+import sha256 from 'js-sha256';
 import { tou8 } from './utils';
 
 function ripemd160(args = '') {

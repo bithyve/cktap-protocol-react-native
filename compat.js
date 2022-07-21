@@ -1,5 +1,5 @@
 import RIPEMD160 from 'ripemd160';
-import base32 from 'buf-b32';
+import { encode as b32Encode } from 'buf-b32';
 import bip32 from 'bip32';
 import { randomBytes } from 'crypto';
 import secp256k1 from 'secp256k1';
@@ -21,7 +21,7 @@ function sha256s(msg, hex = false) {
 }
 
 function base32Encode(buff) {
-  return Buffer.from(base32.encode(tou8(buff)));
+  return Buffer.from(b32Encode(tou8(buff)));
 }
 
 function rec_id_from_header(header) {

@@ -162,7 +162,7 @@ function verify_certs(
     my_nonce,
     certs_resp['cert_chain'],
     check_resp['auth_sig'],
-    slot_pubkey
+    slot_pubkey ? Buffer.from(slot_pubkey, 'hex') : slot_pubkey
   );
 }
 
@@ -172,7 +172,7 @@ function verify_certs_ll(
   my_nonce,
   cert_chain,
   signature,
-  slot_pubkey = None
+  slot_pubkey = null
 ) {
   // Lower-level version with just the facts coming in...
   if (cert_chain.length < 2) {

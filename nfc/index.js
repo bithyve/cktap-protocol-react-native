@@ -22,7 +22,9 @@ async function send(cmd, args = {}) {
     args.cmd = cmd;
     const bytes = cborEncode(args);
     const delay = getDelay(cmd);
-    Platform.OS === 'android' && delay && NfcManager.setTimeout(delay);
+    if (Platform.OS === 'android' && delay) {
+      await NfcManager.setTimeout(delay);
+    }
     const r = await NfcManager.isoDepHandler.transceive(bytes);
     const { response, status } = decodeAndSplitResponse(r);
     return { response, status };

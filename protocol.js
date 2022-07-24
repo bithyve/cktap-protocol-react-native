@@ -11,6 +11,7 @@ import {
   path2str,
   pick_nonce,
   recover_address,
+  recover_pubkey,
   render_address,
   str2path,
   verify_certs,
@@ -183,11 +184,6 @@ export class CKTapCard {
       return;
     }
 
-    // check certificate chain
-    if (!this._certs_checked && !faster) {
-      await this.certificate_check();
-    }
-
     const st = await this.send('status');
     const cur_slot = st['slots'][0];
     if (slot === null) {
@@ -195,17 +191,16 @@ export class CKTapCard {
     }
 
     if (!st.addr && cur_slot === slot) {
-      //raise ValueError("Current slot is not yet setup.")
       throw new Error('Current slot is not yet setup.');
     }
 
     if (slot !== cur_slot) {
       // Use the unauthenticated "dump" command.
       const rr = await this.send('dump', { slot: Number(slot) });
-      if (!incl_pubkey) {
+      if (incl_pubkey) {
         throw new Error('can only get pubkey on current slot');
       } else {
-        return rr['addr'];
+        return { addr: rr['addr'], pubkey: null };
       }
     }
 
@@ -214,6 +209,11 @@ export class CKTapCard {
     const rr = await this.send('read', { nonce });
 
     const { pubkey, addr } = recover_address(st, rr, nonce);
+
+    // check certificate chain
+    if (!this._certs_checked && !faster) {
+      await this.certificate_check(pubkey);
+    }
 
     if (!faster) {
       // additional check: did card include chain_code in generated private key?
@@ -316,6 +316,51 @@ export class CKTapCard {
     return xpubString;
   }
 
+  async get_pubkey(cvc = null, subpath = null) {
+    // TAPSIGNER: Get the public key for current derived path
+    // SATSCARD: Get pubkey of current slot which must be sealed, else return null
+    // - on TS, it's an authenticated command: 'read'
+    // - equiv. to get_xpub(master=False) and looking at part of that value
+    // - if subpath is provided, fetch the xpub (derived on-card)
+    //   and apply further bip32 (unhardened) derivation off-card (here)
+    // - in any case, return null if no keypair defined yet for current slot
+    const st = await this.send('status');
+
+    if (this.is_tapsigner) {
+      if (!st.path) {
+        throw new Error('Card not setup yet');
+      }
+      if (!subpath) {
+        const n = pick_nonce();
+        const { sk, ag } = this.send_auth('read', cvc, n);
+        const { pubkey, _ } = recover_pubkey(st, ag, n, sk);
+        return pubkey;
+      } else {
+        // TODO: imple
+        throw new Error('Functionality yet to implement...');
+        const xpub = this.get_xpub(cvc, false);
+        const hd = PubKeyNode.parse(xpub, this.is_testnet);
+        const sk = hd.get_extended_pubkey_from_path(str2path(subpath));
+        return sk.sec();
+      }
+    } else {
+      // Use special-purpose "read" command, which is unauthenticated
+      // - will return error if current slot is unused (meaning no key picked)
+      const n = pick_nonce();
+      try {
+        const rr = await this.send('read', { nonce: n });
+        const { pubkey, addr } = recover_address(st, rr, n);
+        return { pubkey, addr };
+      } catch (err) {
+        if (err.code == 406) {
+          // current slot is not yet setup w/ private key (ie. unused or unsealed) (406: 'bad state')
+          return null;
+        }
+        throw err;
+      }
+    }
+  }
+
   async make_backup(cvc) {
     // read the backup file; gives ~100 bytes to be kept long term
     if (!this.is_tapsigner) {
@@ -333,7 +378,7 @@ export class CKTapCard {
     return this.send_auth('change', old_cvc, { data: force_bytes(new_cvc) });
   }
 
-  async certificate_check() {
+  async certificate_check(pubkey = null) {
     // Verify the certificate chain and the public key of the card
     // - assures this card was produced in Coinkite factory
     // - does not relate to payment addresses or slot usage
@@ -342,7 +387,7 @@ export class CKTapCard {
     const certs = await this.send('certs');
     const nonce = pick_nonce();
     const check = await this.send('check', { nonce });
-    const rv = verify_certs(status, check, certs, nonce);
+    const rv = verify_certs(status, check, certs, nonce, pubkey);
     this._certs_checked = true;
 
     return rv;

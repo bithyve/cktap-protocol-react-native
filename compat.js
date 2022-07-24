@@ -1,6 +1,7 @@
+import { fromPrivateKey, fromPublicKey } from 'bip32';
+
 import RIPEMD160 from 'ripemd160';
 import { encode as b32Encode } from 'buf-b32';
-import bip32 from 'bip32';
 import { randomBytes } from 'crypto';
 import secp256k1 from 'secp256k1';
 import sha256 from 'js-sha256';
@@ -81,10 +82,10 @@ function CT_bip32_derive(chain_code, master_priv_pub, subkey_path) {
   let master;
   if (master_priv_pub.length === 32) {
     // master_priv_pub :: private_key
-    master = bip32.fromPrivateKey(master_priv_pub, chain_code);
+    master = fromPrivateKey(master_priv_pub, chain_code);
   } else {
     // master_priv_pub :: public_key
-    master = bip32.fromPublicKey(master_priv_pub, chain_code);
+    master = fromPublicKey(master_priv_pub, chain_code);
   }
 
   let node = master;

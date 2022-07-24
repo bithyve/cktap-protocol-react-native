@@ -71,7 +71,7 @@ function path2str(path) {
 }
 
 function str2path(path) {
-  // normalize notation and return numbers, no error checking
+  // normalize notation and return numbers, limited error checking
   let rv = [];
   let here;
   const splitArr = path.split('/');
@@ -142,32 +142,64 @@ function card_pubkey_to_ident(card_pubkey) {
   return v.slice(0, -1);
 }
 
-function verify_certs(status_resp, check_resp, certs_resp, my_nonce) {
-  // Verify the certificate chain works, returns label for pubkey recovered from signatures.
-  // - raises on any verification issue
-  //
-  const signatures = certs_resp['cert_chain'];
-  if (signatures.length < 2) {
-    throw new Error('Signatures too small');
+function verify_certs(
+  status_resp,
+  check_resp,
+  certs_resp,
+  my_nonce,
+  slot_pubkey
+) {
+  // # Verify the certificate chain works, returns label for pubkey recovered from signatures.
+  // # - raises on any verification issue
+  if (status_resp['ver'] == '0.9.0') {
+    // # compat with v0.9.0 cards which never attest to the pubkey
+    slot_pubkey = null;
   }
-  const r = status_resp;
-  const msg = Buffer.concat([
-    Buffer.from('OPENDIME'),
-    r['card_nonce'],
+
+  return verify_certs_ll(
+    status_resp['card_nonce'],
+    status_resp['pubkey'],
     my_nonce,
-  ]);
+    certs_resp['cert_chain'],
+    check_resp['auth_sig'],
+    slot_pubkey
+  );
+}
+
+function verify_certs_ll(
+  card_nonce,
+  card_pubkey,
+  my_nonce,
+  cert_chain,
+  signature,
+  slot_pubkey = None
+) {
+  // Lower-level version with just the facts coming in...
+  if (cert_chain.length < 2) {
+    throw new Error('Missing certs');
+  }
+  let msg = Buffer.concat([Buffer.from('OPENDIME'), card_nonce, my_nonce]);
   if (msg.length !== 8 + CARD_NONCE_SIZE + USER_NONCE_SIZE) {
     throw new Error('Invalid message length');
   }
-  let pubkey = r['pubkey'];
-  // check card can sign with indicated key
-  const ok = CT_sig_verify(check_resp['auth_sig'], tou8(sha256s(msg)), pubkey);
-  if (!ok) {
-    throw new Error('bad sig in verify_certs');
+
+  if (slot_pubkey) {
+    // in v1.0.0+ SATSCARD, the pubkey of the sealed slot (if any) is included here
+    if (slot_pubkey.length !== 33) {
+      throw new Error('Invalid slot pubkey length');
+    }
+    msg = Buffer.concat([msg, slot_pubkey]);
   }
+
+  // check card can and does sign with indicated key
+  ok = CT_sig_verify(signature, tou8(sha256s(msg)), card_pubkey);
+  if (!ok) {
+    throw new Error('bad sig in when verifying certificates');
+  }
+  let pubkey = card_pubkey;
   // follow certificate chain to factory root
-  for (i in signatures) {
-    const signature = signatures[i];
+  for (i in cert_chain) {
+    const signature = cert_chain[i];
     pubkey = CT_sig_to_pubkey(tou8(sha256s(pubkey)), signature);
   }
 
@@ -183,10 +215,15 @@ function recover_pubkey(status_resp, read_resp, my_nonce, ses_key) {
   // [TS] Given the response from "status" and "read" commands,
   // and the nonce we gave for read command, and session key ... reconstruct
   // the card's current pubkey.
-  if (!status_resp['tapsigner']) {
+  if (!status_resp['is_tapsigner']) {
     throw new Error('Card is not a Tapsigner');
   }
-  const msg = 'OPENDIME' + status_resp['card_nonce'] + my_nonce + bytes([0]);
+  const msg = Buffer.concat([
+    Buffer.from('OPENDIME'),
+    status_resp['card_nonce'],
+    Buffer.from(my_nonce),
+    Buffer.from([0]),
+  ]);
   if (msg.length !== 8 + CARD_NONCE_SIZE + USER_NONCE_SIZE + 1) {
     throw new Error('Invalid message length');
   }
@@ -195,7 +232,7 @@ function recover_pubkey(status_resp, read_resp, my_nonce, ses_key) {
   let pubkey = read_resp['pubkey'];
   pubkey = Buffer.concat([
     pubkey.slice(0, 1),
-    xor_bytes(pubkey.sloce(1), ses_key),
+    xor_bytes(pubkey.slice(1), ses_key),
   ]);
 
   // Critical: proves card knows key
@@ -211,7 +248,7 @@ function recover_address(status_resp, read_resp, my_nonce) {
   // [SC] Given the response from "status" and "read" commands, and the
   // nonce we gave for read command, reconstruct the card's verified payment
   // address. Check prefix/suffix match what's expected
-  if (status_resp['tapsigner']) {
+  if (status_resp['is_tapsigner']) {
     throw new Error('recover_address: tapsigner not supported');
   }
   const sl = status_resp['slots'][0];

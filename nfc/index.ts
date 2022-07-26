@@ -13,11 +13,11 @@ async function init() {
     const { response, status } = decodeAndSplitResponse(selectResponse);
     return { response, status };
   } catch (error) {
-    throw new Error('Initialisation failed', error);
+    throw new Error('Initialisation failed');
   }
 }
 
-async function send(cmd, args = {}) {
+async function send(cmd: string, args: any) {
   try {
     args.cmd = cmd;
     const bytes = cborEncode(args);
@@ -33,7 +33,7 @@ async function send(cmd, args = {}) {
   }
 }
 
-const getDelay = cmd => {
+const getDelay = (cmd: string) => {
   if (cmd === 'wait' || cmd === 'backup' || cmd === 'new') {
     return 1000;
   } else {

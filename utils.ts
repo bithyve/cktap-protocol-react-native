@@ -16,13 +16,13 @@ import { bech32 } from 'bech32';
 import { randomBytes } from 'crypto';
 import xor from 'buffer-xor';
 
-function tou8(buf) {
+function tou8(buf: Buffer | Uint8Array | number[] | null) {
   if (!buf) return undefined;
   if (buf.constructor.name === 'Uint8Array' || buf.constructor === Uint8Array) {
     return buf;
   }
   if (typeof buf === 'string') {
-    buf = Buffer(buf);
+    buf = Buffer.from(buf);
   }
   var a = new Uint8Array(buf.length);
   for (var i = 0; i < buf.length; i++) {
@@ -31,7 +31,7 @@ function tou8(buf) {
   return a;
 }
 
-function xor_bytes(a, b) {
+function xor_bytes(a: Buffer, b: Buffer) {
   if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b)) {
     throw new Error('Type mismatch: Expected buffers at xor_bytes');
   }
@@ -46,13 +46,13 @@ function pick_nonce() {
   for (let i = 0; i < num_of_retry; i++) {
     const rv = randomBytes(USER_NONCE_SIZE);
     const rvSet = new Set(rv);
-    if (rv[0] != rv[-1] || rvSet.length >= 2) return rv;
+    if (rv[0] != rv[-1] || rvSet.size >= 2) return rv;
   }
 }
 
-const HARDENED = 0x80000000;
+const HARDENED: any = 0x80000000;
 
-function path_component_in_range(num) {
+function path_component_in_range(num: number) {
   // cannot be less than 0
   // cannot be more than (2 ** 31) - 1
   if (0 <= num < HARDENED) {
@@ -61,7 +61,7 @@ function path_component_in_range(num) {
   return false;
 }
 
-function path2str(path) {
+function path2str(path: number[]) {
   const temp = [];
   for (var i = 0; i < path.length; i += 1) {
     var item = path[i];
@@ -70,12 +70,12 @@ function path2str(path) {
   return ['m', ...temp].join('/');
 }
 
-function str2path(path) {
+function str2path(path: string) {
   // normalize notation and return numbers, limited error checking
-  let rv = [];
+  let rv: number[] = [];
   let here;
   const splitArr = path.split('/');
-  for (i in splitArr) {
+  for (let i in splitArr) {
     const item = splitArr[i];
     if (item == 'm') {
       continue;
@@ -108,23 +108,23 @@ function str2path(path) {
   return rv;
 }
 
-function all(itr) {
+function all(itr: any[]) {
   return itr.every(item => !!item);
 }
 
-function any(itr) {
+function any(itr: any[]) {
   return itr.some(item => !!item);
 }
 
 //  predicates for numeric paths. stop giggling
-function all_hardened(path) {
+function all_hardened(path: number[]) {
   return all(path.map(item => !!(item & HARDENED)));
 }
-function none_hardened(path) {
+function none_hardened(path: number[]) {
   return !any(path.map(item => !!(item & HARDENED)));
 }
 
-function card_pubkey_to_ident(card_pubkey) {
+function card_pubkey_to_ident(card_pubkey: Buffer) {
   // convert pubkey into a hash formated for humans
   // - sha256(compressed-pubkey)
   // - skip first 8 bytes of that (because that's revealed in NFC URL)
@@ -134,20 +134,20 @@ function card_pubkey_to_ident(card_pubkey) {
   if (card_pubkey.length != 33) {
     throw new Error('expecting compressed pubkey');
   }
-  const md = base32Encode(sha256s(card_pubkey).slice(8));
+  const md = base32Encode(Buffer.from(sha256s(card_pubkey).slice(8)));
   let v = '';
-  for (i = 0; i < 20; i += 5) {
+  for (let i = 0; i < 20; i += 5) {
     v += md.slice(i, i + 5) + '-';
   }
   return v.slice(0, -1);
 }
 
 function verify_certs(
-  status_resp,
-  check_resp,
-  certs_resp,
-  my_nonce,
-  slot_pubkey
+  status_resp: { ver: string; card_nonce: Buffer; pubkey: Buffer },
+  check_resp: { auth_sig: Buffer },
+  certs_resp: { cert_chain: Buffer[] },
+  my_nonce: Buffer,
+  slot_pubkey: string | Buffer = null
 ) {
   // # Verify the certificate chain works, returns label for pubkey recovered from signatures.
   // # - raises on any verification issue
@@ -162,17 +162,17 @@ function verify_certs(
     my_nonce,
     certs_resp['cert_chain'],
     check_resp['auth_sig'],
-    slot_pubkey ? Buffer.from(slot_pubkey, 'hex') : slot_pubkey
+    slot_pubkey
   );
 }
 
 function verify_certs_ll(
-  card_nonce,
-  card_pubkey,
-  my_nonce,
-  cert_chain,
-  signature,
-  slot_pubkey = null
+  card_nonce: Buffer,
+  card_pubkey: Buffer,
+  my_nonce: Buffer,
+  cert_chain: Buffer[],
+  signature: Buffer,
+  slot_pubkey: string | Buffer = null
 ) {
   // Lower-level version with just the facts coming in...
   if (cert_chain.length < 2) {
@@ -182,25 +182,31 @@ function verify_certs_ll(
   if (msg.length !== 8 + CARD_NONCE_SIZE + USER_NONCE_SIZE) {
     throw new Error('Invalid message length');
   }
-
+  slot_pubkey = slot_pubkey
+    ? Buffer.from(slot_pubkey as string, 'hex')
+    : slot_pubkey;
   if (slot_pubkey) {
     // in v1.0.0+ SATSCARD, the pubkey of the sealed slot (if any) is included here
     if (slot_pubkey.length !== 33) {
       throw new Error('Invalid slot pubkey length');
     }
-    msg = Buffer.concat([msg, slot_pubkey]);
+    msg = Buffer.concat([msg, slot_pubkey as Buffer]);
   }
 
   // check card can and does sign with indicated key
-  ok = CT_sig_verify(signature, tou8(sha256s(msg)), card_pubkey);
+  const ok = CT_sig_verify(
+    signature,
+    tou8(sha256s(msg)) as Uint8Array,
+    card_pubkey
+  );
   if (!ok) {
     throw new Error('bad sig in when verifying certificates');
   }
   let pubkey = card_pubkey;
   // follow certificate chain to factory root
-  for (i in cert_chain) {
+  for (let i in cert_chain) {
     const signature = cert_chain[i];
-    pubkey = CT_sig_to_pubkey(tou8(sha256s(pubkey)), signature);
+    pubkey = CT_sig_to_pubkey(tou8(sha256s(pubkey)) as Uint8Array, signature);
   }
 
   if (Buffer.compare(Buffer.from(pubkey), FACTORY_ROOT_KEYS[0])) {
@@ -211,7 +217,12 @@ function verify_certs_ll(
   return pubkey;
 }
 
-function recover_pubkey(status_resp, read_resp, my_nonce, ses_key) {
+function recover_pubkey(
+  status_resp: { is_tapsigner: boolean; card_nonce: Buffer },
+  read_resp: { pubkey: Buffer; sig: Buffer },
+  my_nonce: Buffer,
+  ses_key: Buffer
+) {
   // [TS] Given the response from "status" and "read" commands,
   // and the nonce we gave for read command, and session key ... reconstruct
   // the card's current pubkey.
@@ -221,7 +232,7 @@ function recover_pubkey(status_resp, read_resp, my_nonce, ses_key) {
   const msg = Buffer.concat([
     Buffer.from('OPENDIME'),
     status_resp['card_nonce'],
-    Buffer.from(my_nonce),
+    my_nonce,
     Buffer.from([0]),
   ]);
   if (msg.length !== 8 + CARD_NONCE_SIZE + USER_NONCE_SIZE + 1) {
@@ -236,7 +247,11 @@ function recover_pubkey(status_resp, read_resp, my_nonce, ses_key) {
   ]);
 
   // Critical: proves card knows key
-  const ok = CT_sig_verify(pubkey, sha256s(msg), read_resp['sig']);
+  const ok = CT_sig_verify(
+    pubkey,
+    tou8(sha256s(msg)) as Uint8Array,
+    read_resp['sig']
+  );
   if (!ok) {
     throw new Error('Bad sig in recover_pubkey');
   }
@@ -244,7 +259,16 @@ function recover_pubkey(status_resp, read_resp, my_nonce, ses_key) {
   return pubkey;
 }
 
-function recover_address(status_resp, read_resp, my_nonce) {
+function recover_address(
+  status_resp: {
+    is_tapsigner: boolean;
+    card_nonce: Buffer;
+    slots: any[];
+    addr: string;
+  },
+  read_resp: { pubkey: Buffer; sig: Buffer },
+  my_nonce: Buffer
+) {
   // [SC] Given the response from "status" and "read" commands, and the
   // nonce we gave for read command, reconstruct the card's verified payment
   // address. Check prefix/suffix match what's expected
@@ -277,7 +301,7 @@ function recover_address(status_resp, read_resp, my_nonce) {
   const right = expect.slice(expect.lastIndexOf('_') + 1);
 
   // Critical: counterfieting check
-  const addr = render_address(pubkey, status_resp['tapsigner']);
+  const addr = render_address(pubkey, false);
 
   if (
     !(
@@ -293,12 +317,18 @@ function recover_address(status_resp, read_resp, my_nonce) {
   return { pubkey, addr };
 }
 
-function force_bytes(foo) {
+function force_bytes(foo: string) {
   // convert strings to bytes where needed
   return typeof foo === 'string' ? Buffer.from(foo) : foo;
 }
 
-function verify_master_pubkey(pub, sig, chain_code, my_nonce, card_nonce) {
+function verify_master_pubkey(
+  pub: Buffer,
+  sig: Buffer,
+  chain_code: Buffer,
+  my_nonce: Buffer,
+  card_nonce: Buffer
+) {
   // using signature response from 'deriv' command, recover the master pubkey
   // for this slot
   const msg = Buffer.concat([
@@ -320,7 +350,7 @@ function verify_master_pubkey(pub, sig, chain_code, my_nonce, card_nonce) {
   return pub;
 }
 
-function render_address(pubkey, testnet = false) {
+function render_address(pubkey: Buffer, testnet = false) {
   // make the text string used as a payment address
   if (pubkey.length === 32)
     // actually a private key, convert
@@ -330,21 +360,25 @@ function render_address(pubkey, testnet = false) {
   return bech32.encode(HRP, [0].concat(words));
 }
 
-function verify_derive_address(chain_code, master_pub, testnet = false) {
+function verify_derive_address(
+  chain_code: Buffer,
+  master_pub: Buffer,
+  testnet = false
+) {
   // # re-derive the address we should expect
   // # - this is "m/0" in BIP-32 nomenclature
   // # - accepts master public key (before unseal) or master private key (after)
   const pubkey = CT_bip32_derive(chain_code, master_pub, [0]);
 
-  return { derived_addr: render_address(pubkey, (testnet = testnet)), pubkey };
+  return { derived_addr: render_address(pubkey, testnet), pubkey };
 }
 
 function make_recoverable_sig(
-  digest,
-  sig,
-  addr = null,
-  expect_pubkey = null,
-  is_testnet = false
+  digest: Buffer,
+  sig: Buffer,
+  addr?: string | null,
+  expect_pubkey?: Buffer | null,
+  is_testnet: boolean = false
 ) {
   // The card will only make non-recoverable signatures (64 bytes)
   // but we usually know the address which should be implied by
@@ -376,7 +410,7 @@ function make_recoverable_sig(
     }
     if (addr) {
       const got = render_address(pubkey, is_testnet);
-      if (got.endswith(addr)) {
+      if (got.endsWith(addr)) {
         return rec_sig;
       }
     } else {
@@ -388,19 +422,26 @@ function make_recoverable_sig(
   throw new Error('sig may not be created by that address/pubkey??');
 }
 
-function calc_xcvc(cmd, card_nonce, his_pubkey, cvc) {
+function calc_xcvc(
+  cmd: string,
+  card_nonce: Buffer,
+  his_pubkey: Buffer,
+  cvc: string | Buffer
+) {
   // Calcuate session key and xcvc value need for auth'ed commands
   // - also picks an arbitrary keypair for my side of the ECDH?
   // - requires pubkey from card and proposed CVC value
   if (cvc.length < 6 || cvc.length > 32) {
     throw new Error('Invalid cvc length');
   }
-  cvc = force_bytes(cvc);
+  cvc = force_bytes(cvc as string);
   // fresh new ephemeral key for our side of connection
   const { priv: my_privkey, pub: my_pubkey } = CT_pick_keypair();
   // standard ECDH
   // - result is sha256(compressed shared point (33 bytes))
-  const session_key = Buffer.from(CT_ecdh(his_pubkey, tou8(my_privkey)));
+  const session_key = Buffer.from(
+    CT_ecdh(his_pubkey, tou8(my_privkey) as Uint8Array)
+  );
   const message = Buffer.concat([card_nonce, Buffer.from(cmd)]);
   const md = sha256s(message);
   const mask = xor_bytes(session_key, Buffer.from(md)).slice(0, cvc.length);

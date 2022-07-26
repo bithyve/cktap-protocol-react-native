@@ -2,7 +2,7 @@
   "name": "coinkite-tap-protocol-js",
   "version": "0.0.1",
   "description": "coinkite's tap protocol to support Tapcards and Satcards in javascript",
-  "main": "index.js",
+  "main": "index.ts",
   "type": "module",
   "scripts": {
     "prepare": "install-peers",
@@ -26,7 +26,8 @@
     "ecpair": "^2.0.1",
     "js-sha256": "^0.9.0",
     "ripemd160": "^2.0.2",
-    "secp256k1": "^4.0.3"
+    "secp256k1": "^4.0.3",
+    "typescript": "^4.7.4"
   },
   "peerDependencies": {
     "react-native": ">=0.60.0",

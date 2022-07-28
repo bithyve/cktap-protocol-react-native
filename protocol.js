@@ -469,9 +469,9 @@ export class CKTapCard {
     let address = resp['addr'];
 
     if (resp['sealed'] === true) {
-      status = 'sealed';
+      status = 'SEALED';
       if (slot === this.active_slot) {
-        address = await this.address(true);
+        address = (await this.address(true)).addr;
       }
     } else if (resp['sealed'] === false || resp['privkey']) {
       status = 'UNSEALED';
@@ -480,7 +480,7 @@ export class CKTapCard {
         address = render_address(pk, this.is_testnet);
       }
     } else if (resp['used'] === false) {
-      status = 'unused';
+      status = 'UNUSED';
     } else {
       // unreachable.
       throw new Error(JSON.stringify(resp));

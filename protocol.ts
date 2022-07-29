@@ -26,26 +26,44 @@ import base58 from 'bs58';
 
 const { randomBytes } = require('crypto');
 
-async function _send(cmd, args = {}) {
+async function _send(cmd: string, args: any = {}) {
   const { status: stat_word, response: resp } = await transceive(cmd, args);
   return { stat_word, resp };
 }
+
 export class CKTapCard {
+  card_nonce: null | Buffer;
+  card_pubkey: null | Buffer;
+  card_ident: null | string;
+  applet_version: null | string;
+  birth_height: null | number;
+  is_testnet: boolean;
+  auth_delay: null | number;
+  is_tapsigner: null | boolean;
+  path: null | string;
+  num_backups: null | number;
+  active_slot: number;
+  num_slots: null | number;
+  _certs_checked: boolean;
+
   constructor() {
     this.card_nonce = null;
     this.card_pubkey = null;
     this.card_ident = null;
     this.applet_version = null;
     this.birth_height = null;
-    this.is_testnet = null;
+    this.is_testnet = false;
     this.auth_delay = null;
     this.is_tapsigner = null;
     this.path = null;
     this.num_backups = null;
+    this.active_slot = 0;
+    this.num_slots = null;
+    this._certs_checked = false;
   }
 
   // wrap any number of logical commands or functions that need to run with this nfc wrapper
-  async nfcWrapper(callback) {
+  async nfcWrapper(callback: () => Promise<any>): Promise<any> {
     try {
       const supported = await NfcManager.isSupported();
       if (supported) {
@@ -75,19 +93,19 @@ export class CKTapCard {
     }
   }
 
-  async selectApp() {
+  async selectApp(): Promise<void> {
     const { response } = await init();
     if (response['error']) {
       const msg = response['error'];
       const code = response['code'] || 500;
-      throw new Error(`${code} on ${cmd}: ${msg}`);
+      throw new Error(`${code} on app-select: ${msg}`);
     }
     if (response.card_nonce) {
       this.card_nonce = response['card_nonce'];
     }
   }
 
-  async send(cmd, args = {}, raise_on_error = true) {
+  async send(cmd: string, args = {}, raise_on_error = true): Promise<any> {
     //  Send a command, get response, but also catch some card state
     //  changes and mirror them in our state.
     //  - command is a short string, such as "status"
@@ -116,7 +134,7 @@ export class CKTapCard {
     return resp;
   }
 
-  async first_look() {
+  async first_look(): Promise<CKTapCard> {
     // Call this at end of __init__ to load up details from card
     // - can be called multiple times
     const resp = await this.send('status');
@@ -152,7 +170,14 @@ export class CKTapCard {
     return this;
   }
 
-  async send_auth(cmd, cvc, args = {}) {
+  async send_auth(
+    cmd: string,
+    cvc: string,
+    args: any = {}
+  ): Promise<{
+    session_key: any;
+    resp: any;
+  }> {
     // Take CVC and do ECDH crypto and provide the CVC in encrypted form
     // - returns session key and usual auth arguments needed
     // - skip if CVC is null and just do normal stuff (optional auth on some cmds)
@@ -176,12 +201,19 @@ export class CKTapCard {
     return { session_key, resp };
   }
 
-  async address(faster = false, incl_pubkey = false, slot = null) {
+  async address(
+    faster: boolean = false,
+    incl_pubkey: boolean = false,
+    slot: number = null
+  ): Promise<{
+    addr: string;
+    pubkey: Buffer | null;
+  }> {
     // Get current payment address for card
     // - does 100% full verification by default
     // - returns a bech32 address as a string
     if (this.is_tapsigner) {
-      return;
+      throw new Error('SATSCARD only command');
     }
 
     const st = await this.send('status');
@@ -196,7 +228,7 @@ export class CKTapCard {
 
     if (slot !== cur_slot) {
       // Use the unauthenticated "dump" command.
-      const rr = await this.send('dump', { slot: Number(slot) });
+      const rr = await this.send('dump', { slot });
       if (incl_pubkey) {
         throw new Error('can only get pubkey on current slot');
       } else {
@@ -227,7 +259,7 @@ export class CKTapCard {
         my_nonce,
         card_nonce
       );
-      const { derived_addr, _ } = verify_derive_address(
+      const { derived_addr, pubkey: _ } = verify_derive_address(
         resp['chain_code'],
         master_pub,
         this.is_testnet
@@ -240,11 +272,11 @@ export class CKTapCard {
     return { addr, pubkey: incl_pubkey ? pubkey : null };
   }
 
-  async get_derivation() {
+  async get_derivation(): Promise<string> {
     // TAPSIGNER only: what's the current derivation path, which might be
     // just empty (aka 'm').
     if (!this.is_tapsigner) {
-      return;
+      throw new Error('TAPSIGNER only command');
     }
     const status = await this.send('status');
     const path = status['path'];
@@ -254,11 +286,18 @@ export class CKTapCard {
     return path2str(path);
   }
 
-  async set_derivation(path, cvc) {
+  async set_derivation(
+    path: string,
+    cvc: string
+  ): Promise<{
+    length: number;
+    chain_code: Buffer;
+    pubkey: Buffer;
+  }> {
     // TAPSIGNER only: what's the current derivation path, which might be
     // just empty (aka 'm').
     if (!this.is_tapsigner) {
-      return;
+      throw new Error('TAPSIGNER only command');
     }
     const np = str2path(path);
 
@@ -287,10 +326,10 @@ export class CKTapCard {
     };
   }
 
-  async get_xfp(cvc) {
+  async get_xfp(cvc: string): Promise<any> {
     // fetch master xpub, take pubkey from that and calc XFP
     if (!this.is_tapsigner) {
-      return;
+      throw new Error('TAPSIGNER only command');
     }
     const { session_key: _, resp } = await this.send_auth('xpub', cvc, {
       master: true,
@@ -299,11 +338,11 @@ export class CKTapCard {
     return hash160(xpub.slice(-33)).slice(0, 4);
   }
 
-  async get_xpub(cvc, master = false) {
+  async get_xpub(cvc: string, master: boolean = false): Promise<string> {
     // fetch XPUB, either derived or master one
     // - result is BIP-32 serialized and base58-check encoded
     if (!this.is_tapsigner) {
-      return;
+      throw new Error('TAPSIGNER only command');
     }
     const { session_key: _, resp } = await this.send_auth('xpub', cvc, {
       master,
@@ -316,7 +355,10 @@ export class CKTapCard {
     return xpubString;
   }
 
-  async get_pubkey(cvc = null, subpath = null) {
+  async get_pubkey(
+    cvc: string = null,
+    subpath: string = null
+  ): Promise<{ pubkey: Buffer; addr: string } | { pubkey }> {
     // TAPSIGNER: Get the public key for current derived path
     // SATSCARD: Get pubkey of current slot which must be sealed, else return null
     // - on TS, it's an authenticated command: 'read'
@@ -332,16 +374,16 @@ export class CKTapCard {
       }
       if (!subpath) {
         const n = pick_nonce();
-        const { sk, ag } = this.send_auth('read', cvc, n);
-        const { pubkey, _ } = recover_pubkey(st, ag, n, sk);
-        return pubkey;
+        const { session_key, resp } = await this.send_auth('read', cvc, n);
+        const pubkey = recover_pubkey(st, resp, n, session_key);
+        return { pubkey };
       } else {
         // TODO: imple
         throw new Error('Functionality yet to implement...');
-        const xpub = this.get_xpub(cvc, false);
-        const hd = PubKeyNode.parse(xpub, this.is_testnet);
-        const sk = hd.get_extended_pubkey_from_path(str2path(subpath));
-        return sk.sec();
+        // const xpub = this.get_xpub(cvc, false);
+        // const hd = PubKeyNode.parse(xpub, this.is_testnet);
+        // const sk = hd.get_extended_pubkey_from_path(str2path(subpath));
+        // return sk.sec();
       }
     } else {
       // Use special-purpose "read" command, which is unauthenticated
@@ -361,16 +403,22 @@ export class CKTapCard {
     }
   }
 
-  async make_backup(cvc) {
+  async make_backup(cvc: string): Promise<Buffer> {
     // read the backup file; gives ~100 bytes to be kept long term
     if (!this.is_tapsigner) {
-      return;
+      throw new Error('TAPSIGNER only command');
     }
     const { session_key: _, resp } = await this.send_auth('backup', cvc);
     return resp['data'];
   }
 
-  async change_cvc(old_cvc, new_cvc) {
+  async change_cvc(
+    old_cvc: string,
+    new_cvc: string
+  ): Promise<{
+    session_key: any;
+    resp: any;
+  }> {
     // Change CVC. Note: can be binary or ascii or digits, 6..32 long
     if (new_cvc.length < 6 || new_cvc.length > 32) {
       throw new Error('CVC must be 6 to 32 characters long');
@@ -378,7 +426,7 @@ export class CKTapCard {
     return this.send_auth('change', old_cvc, { data: force_bytes(new_cvc) });
   }
 
-  async certificate_check(pubkey = null) {
+  async certificate_check(pubkey: string | Buffer = null): Promise<Buffer> {
     // Verify the certificate chain and the public key of the card
     // - assures this card was produced in Coinkite factory
     // - does not relate to payment addresses or slot usage
@@ -393,16 +441,19 @@ export class CKTapCard {
     return rv;
   }
 
-  async get_status() {
+  async get_status(): Promise<CKTapCard> {
     // read current status
     return this.send('status');
   }
 
-  async unseal_slot(cvc) {
+  async unseal_slot(cvc: string): Promise<{
+    pk: Buffer;
+    target: number;
+  }> {
     // Unseal the current slot (can only be one)
     // - returns (privkey, slot_num)
     if (this.is_tapsigner) {
-      return;
+      throw new Error('SATSCARD only command');
     }
 
     // only one possible value for slot number
@@ -427,20 +478,20 @@ export class CKTapCard {
     return { pk, target };
   }
 
-  async get_nfc_url() {
+  async get_nfc_url(): Promise<string> {
     // Provide the (dynamic) URL that you'd get if you tapped the card.
     const { url } = await this.send('nfc_url');
     return url;
   }
 
-  async get_privkey(cvc, slot) {
+  async get_privkey(cvc: string, slot: number): Promise<Buffer> {
     // Provide the private key of an already-unsealed slot (32 bytes)
     if (this.is_tapsigner) {
-      return;
+      throw new Error('SATSCARD only command');
     }
 
     const { session_key, resp } = await this.send_auth('dump', cvc, {
-      slot: Number(slot),
+      slot,
     });
 
     if (!resp['privkey'])
@@ -455,15 +506,22 @@ export class CKTapCard {
     return xor_bytes(session_key, resp['privkey']);
   }
 
-  async get_slot_usage(slot, cvc = null) {
+  async get_slot_usage(
+    slot: number,
+    cvc: string = null
+  ): Promise<{
+    address: string | undefined;
+    status: 'SEALED' | 'UNSEALED' | 'UNUSED';
+    resp: any;
+  }> {
     // Get address and status for a slot, CVC is optional
     // returns:
     //   (address, status, detail_map)
     if (this.is_tapsigner) {
-      return;
+      throw new Error('SATSCARD only command');
     }
     const { session_key, resp } = await this.send_auth('dump', cvc, {
-      slot: Number(slot),
+      slot,
     });
     let status;
     let address = resp['addr'];
@@ -491,7 +549,12 @@ export class CKTapCard {
     return { address, status, resp };
   }
 
-  async sign_digest(cvc, slot, digest, subpath = null) {
+  async sign_digest(
+    cvc: string,
+    slot: number,
+    digest: Buffer,
+    subpath: string = null
+  ): Promise<any> {
     /*
         Sign 32 bytes digest and return 65 bytes long recoverable signature.
 
@@ -554,7 +617,17 @@ export class CKTapCard {
     throw new Error(`500 on sign: ${msg}`);
   }
 
-  async setup(cvc, chain_code, new_chain_code) {
+  async setup(
+    cvc: string,
+    chain_code: Buffer = null,
+    new_chain_code: boolean = false
+  ): Promise<
+    | CKTapCard
+    | {
+        addr: string;
+        pubkey: Buffer;
+      }
+  > {
     let target;
     if (this.is_tapsigner) {
       target = 0;
@@ -610,11 +683,11 @@ export class CKTapCard {
     }
   }
 
-  async wait() {
+  async wait(): Promise<any> {
     return this.send('wait');
   }
 
-  async read(cvc) {
+  async read(cvc: string): Promise<any> {
     return this.send_auth('read', cvc, { nonce: pick_nonce() });
   }
 }

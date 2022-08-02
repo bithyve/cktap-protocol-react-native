@@ -221,13 +221,13 @@ export class CKTapCard {
     if (slot === null) {
       slot = cur_slot;
     }
-    if (!st.addr && cur_slot === Number(slot)) {
+    if (!st.addr && cur_slot === slot) {
       throw new Error('Current slot is not yet setup.');
     }
 
-    if (Number(slot) !== cur_slot) {
+    if (slot !== cur_slot) {
       // Use the unauthenticated "dump" command.
-      const rr = await this.send('dump', { slot: Number(slot) });
+      const rr = await this.send('dump', { slot });
 
       if (rr['used'] === false) {
         throw new Error(`Slot ${slot} is not yet setup.`);

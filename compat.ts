@@ -101,8 +101,8 @@ function CT_bip32_derive(
   }
 
   let node = master;
-  subkey_path.forEach((node: any) => {
-    node = node.derive(node);
+  subkey_path.forEach((i: number) => {
+    node = node.derive(i);
   });
   return node.publicKey;
 }

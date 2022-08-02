@@ -221,14 +221,17 @@ export class CKTapCard {
     if (slot === null) {
       slot = cur_slot;
     }
-
-    if (!st.addr && cur_slot === slot) {
+    if (!st.addr && cur_slot === Number(slot)) {
       throw new Error('Current slot is not yet setup.');
     }
 
-    if (slot !== cur_slot) {
+    if (Number(slot) !== cur_slot) {
       // Use the unauthenticated "dump" command.
-      const rr = await this.send('dump', { slot });
+      const rr = await this.send('dump', { slot: Number(slot) });
+
+      if (rr['used'] === false) {
+        throw new Error(`Slot ${slot} is not yet setup.`);
+      }
       if (incl_pubkey) {
         throw new Error('can only get pubkey on current slot');
       } else {
@@ -239,7 +242,6 @@ export class CKTapCard {
     // Use special-purpose "read" command
     const nonce = pick_nonce();
     const rr = await this.send('read', { nonce });
-
     const { pubkey, addr } = recover_address(st, rr, nonce);
 
     // check certificate chain
@@ -672,7 +674,7 @@ export class CKTapCard {
         console.log('TAPSIGNER ready for use');
         return this;
       } else {
-        console.log('SATSCARD ready for use');
+        console.log(`SATSCARD slot ${resp['slot']} is ready for use`);
         // only one field: new slot number
         this.active_slot = resp['slot'];
         return this.address();

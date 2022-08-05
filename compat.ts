@@ -1,5 +1,5 @@
+import { BIP32Interface, fromPrivateKey, fromPublicKey } from 'bip32';
 import { Message, sha256 } from 'js-sha256';
-import { fromPrivateKey, fromPublicKey } from 'bip32';
 
 import RIPEMD160 from 'ripemd160';
 import { encode as b32Encode } from 'buf-b32';
@@ -7,25 +7,44 @@ import { randomBytes } from 'crypto';
 import secp256k1 from 'secp256k1';
 import { tou8 } from './utils';
 
-function ripemd160(args: any) {
+/**
+ * @param  {any} args
+ * @returns any
+ */
+function ripemd160(args: any): any {
   return new RIPEMD160().update(args).digest();
 }
 
-function hash160(args: any) {
+/**
+ * @param  {any} args
+ * @returns any
+ */
+function hash160(args: any): any {
   return ripemd160(Buffer.from(sha256s(args)));
 }
 
-function sha256s(msg: Message) {
+/**
+ * @param  {Message} msg
+ * @returns number[]
+ */
+function sha256s(msg: Message): number[] {
   var hash = sha256.create();
   const msg_digest = hash.update(msg).digest();
   return msg_digest;
 }
 
-function base32Encode(buff: Buffer) {
+/**
+ * @param  {Buffer} buff
+ * @returns Buffer (base-32 encoded)
+ */
+function base32Encode(buff: Buffer): Buffer {
   return Buffer.from(b32Encode(tou8(buff) as ArrayBufferView));
 }
-
-function rec_id_from_header(header: number) {
+/**
+ * @param  {number} header
+ * @returns number
+ */
+function rec_id_from_header(header: number): number {
   let header_num = header & 0xff;
   if (header_num >= 39) header_num -= 12;
   else if (header_num >= 35) header_num -= 8;
@@ -34,8 +53,10 @@ function rec_id_from_header(header: number) {
   return rec_id;
 }
 
-function CT_pick_keypair() {
-  // return {priv, pub}
+/**
+ * @returns {priv: Buffer, pub: Buffer}
+ */
+function CT_pick_keypair(): { priv: Buffer; pub: Buffer } {
   let priv;
   const compressed = true;
   do {
@@ -46,58 +67,75 @@ function CT_pick_keypair() {
   return { priv, pub };
 }
 
-function CT_priv_to_pubkey(priv: Uint8Array | Buffer) {
-  // return compressed pubkey
+/**
+ * @param  {Uint8Array|Buffer} priv
+ * @returns Buffer (compressed pubkey)
+ */
+function CT_priv_to_pubkey(priv: Uint8Array | Buffer): Buffer {
   const compressed = true;
   return secp256k1.publicKeyCreate(priv, compressed);
 }
 
+/**
+ * @param  {Uint8Array} sig
+ * @param  {Uint8Array} msg_digest
+ * @param  {Uint8Array} pub
+ * @returns boolean
+ */
 function CT_sig_verify(
   sig: Uint8Array,
   msg_digest: Uint8Array,
   pub: Uint8Array
-) {
-  // returns True or False
+): boolean {
   return secp256k1.ecdsaVerify(sig, msg_digest, pub);
 }
 
-function CT_sig_to_pubkey(msg_digest: Uint8Array, sig: Uint8Array) {
-  // returns a pubkey (33 bytes)
+/**
+ * @param  {Uint8Array} msg_digest
+ * @param  {Uint8Array} sig
+ * @returns Buffer (pubkey 33 bytes)
+ */
+function CT_sig_to_pubkey(msg_digest: Uint8Array, sig: Uint8Array): Buffer {
   const header = sig.slice(0, 1)[0];
   const compact_sig = sig.slice(1);
   const rec_id = rec_id_from_header(header);
   return secp256k1.ecdsaRecover(compact_sig, rec_id, msg_digest);
 }
 
-function CT_ecdh(his_pubkey: Uint8Array, my_privkey: Uint8Array) {
-  // returns a 32-byte session key, which is sha256s(compressed point)
-
+/**
+ * @param  {Uint8Array} his_pubkey
+ * @param  {Uint8Array} my_privkey
+ * @returns Buffer (32-byte session key, w/ is sha256s i.e. compressed point)
+ */
+function CT_ecdh(his_pubkey: Uint8Array, my_privkey: Uint8Array): Buffer {
   return secp256k1.ecdh(his_pubkey, my_privkey);
 }
 
-function CT_sign(
-  privkey: Uint8Array,
-  msg_digest: Uint8Array,
-  recoverable: boolean = false
-) {
-  // returns 64-byte sig
-
+/**
+ * @param  {Uint8Array} privkey
+ * @param  {Uint8Array} msg_digest
+ * @returns Buffer (64-byte signature)
+ */
+function CT_sign(privkey: Uint8Array, msg_digest: Uint8Array): Buffer {
   return secp256k1.ecdsaSign(msg_digest, privkey);
 }
 
+/**
+ * @param  {Buffer} chain_code
+ * @param  {Buffer} master_priv_pub
+ * @param  {any[]} subkey_path
+ * @returns Buffer (pubkey 33 bytes)
+ */
 function CT_bip32_derive(
   chain_code: Buffer,
   master_priv_pub: Buffer,
   subkey_path: any[]
-) {
-  // return pubkey (33 bytes)
-  let master;
+): Buffer {
+  let master: BIP32Interface;
   if (master_priv_pub.length === 32) {
-    // master_priv_pub :: private_key
-    master = fromPrivateKey(master_priv_pub, chain_code);
+    master = fromPrivateKey(master_priv_pub, chain_code); // master_priv_pub :: private_key
   } else {
-    // master_priv_pub :: public_key
-    master = fromPublicKey(master_priv_pub, chain_code);
+    master = fromPublicKey(master_priv_pub, chain_code); // master_priv_pub :: public_key
   }
 
   let node = master;

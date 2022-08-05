@@ -42,5 +42,3 @@ export const SW_OKAY = '9000';
 
 //  path lengths (depth) is limited 8 components in derive command - check docs/limitations.md
 export const DERIVE_MAX_BIP32_PATH_DEPTH = 8;
-
-//  EOF

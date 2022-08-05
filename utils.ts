@@ -16,6 +16,10 @@ import { bech32 } from 'bech32';
 import { randomBytes } from 'crypto';
 import xor from 'buffer-xor';
 
+/**
+ * @param  {Buffer|Uint8Array|number[]|null} buf
+ * @returns Uint8Array
+ */
 function tou8(
   buf: Buffer | Uint8Array | number[] | null
 ): Uint8Array | undefined {
@@ -32,7 +36,11 @@ function tou8(
   }
   return a;
 }
-
+/**
+ * @param  {Buffer} a
+ * @param  {Buffer} b
+ * @returns Buffer
+ */
 function xor_bytes(a: Buffer, b: Buffer): Buffer {
   if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b)) {
     throw new Error('Type mismatch: Expected buffers at xor_bytes');
@@ -42,7 +50,9 @@ function xor_bytes(a: Buffer, b: Buffer): Buffer {
   }
   return Buffer.from(xor(a, b));
 }
-
+/**
+ * @returns Buffer
+ */
 function pick_nonce(): Buffer {
   const num_of_retry = 3;
   for (let i = 0; i < num_of_retry; i++) {
@@ -53,7 +63,10 @@ function pick_nonce(): Buffer {
 }
 
 const HARDENED: any = 0x80000000;
-
+/**
+ * @param  {number} num
+ * @returns boolean
+ */
 function path_component_in_range(num: number): boolean {
   // cannot be less than 0
   // cannot be more than (2 ** 31) - 1
@@ -62,7 +75,10 @@ function path_component_in_range(num: number): boolean {
   }
   return false;
 }
-
+/**
+ * @param  {number[]} path
+ * @returns string
+ */
 function path2str(path: number[]): string {
   const temp = [];
   for (var i = 0; i < path.length; i += 1) {
@@ -71,7 +87,10 @@ function path2str(path: number[]): string {
   }
   return ['m', ...temp].join('/');
 }
-
+/**
+ * @param  {string} path
+ * @returns number[]
+ */
 function str2path(path: string): number[] {
   // normalize notation and return numbers, limited error checking
   let rv: number[] = [];
@@ -110,29 +129,49 @@ function str2path(path: string): number[] {
   return rv;
 }
 
+/**
+ * @param  {any[]} itr
+ * @returns boolean
+ */
 function all(itr: any[]): boolean {
   return itr.every(item => !!item);
 }
 
+/**
+ * @param  {any[]} itr
+ * @returns boolean
+ */
 function any(itr: any[]): boolean {
   return itr.some(item => !!item);
 }
 
-//  predicates for numeric paths. stop giggling
+/**
+ * @param  {number[]} path
+ * @returns boolean
+ */
 function all_hardened(path: number[]): boolean {
   return all(path.map(item => !!(item & HARDENED)));
 }
+
+/**
+ * @param  {number[]} path
+ * @returns boolean
+ */
 function none_hardened(path: number[]): boolean {
   return !any(path.map(item => !!(item & HARDENED)));
 }
 
+/**
+ * convert pubkey into a hash formated for humans
+ * sha256(compressed-pubkey)
+ * skip first 8 bytes of that (because that's revealed in NFC URL)
+ * base32 and take first 20 chars in 4 groups of five
+ * insert dashes
+ * result is 23 chars long
+ * @param  {Buffer} card_pubkey
+ * @returns string
+ */
 function card_pubkey_to_ident(card_pubkey: Buffer): string {
-  // convert pubkey into a hash formated for humans
-  // - sha256(compressed-pubkey)
-  // - skip first 8 bytes of that (because that's revealed in NFC URL)
-  // - base32 and take first 20 chars in 4 groups of five
-  // - insert dashes
-  // - result is 23 chars long
   if (card_pubkey.length != 33) {
     throw new Error('expecting compressed pubkey');
   }
@@ -143,7 +182,16 @@ function card_pubkey_to_ident(card_pubkey: Buffer): string {
   }
   return v.slice(0, -1);
 }
-
+/**
+ * Verify the certificate chain works, returns label for pubkey recovered from signatures.
+ * throw on any verification issue
+ * @param  {{ver:string;card_nonce:Buffer;pubkey:Buffer}} status_resp
+ * @param  {{auth_sig:Buffer}} check_resp
+ * @param  {{cert_chain:Buffer[]}} certs_resp
+ * @param  {Buffer} my_nonce
+ * @param  {string|Buffer=null} slot_pubkey
+ * @returns Buffer
+ */
 function verify_certs(
   status_resp: { ver: string; card_nonce: Buffer; pubkey: Buffer },
   check_resp: { auth_sig: Buffer },
@@ -151,10 +199,8 @@ function verify_certs(
   my_nonce: Buffer,
   slot_pubkey: string | Buffer = null
 ): Buffer {
-  // # Verify the certificate chain works, returns label for pubkey recovered from signatures.
-  // # - raises on any verification issue
+  // compat with v0.9.0 cards which never attest to the pubkey
   if (status_resp['ver'] == '0.9.0') {
-    // # compat with v0.9.0 cards which never attest to the pubkey
     slot_pubkey = null;
   }
 
@@ -176,7 +222,6 @@ function verify_certs_ll(
   signature: Buffer,
   slot_pubkey: string | Buffer = null
 ): Buffer {
-  // Lower-level version with just the facts coming in...
   if (cert_chain.length < 2) {
     throw new Error('Missing certs');
   }
@@ -187,8 +232,9 @@ function verify_certs_ll(
   slot_pubkey = slot_pubkey
     ? Buffer.from(slot_pubkey as string, 'hex')
     : slot_pubkey;
+
+  // in v1.0.0+ SATSCARD, the pubkey of the sealed slot (if any) is included here
   if (slot_pubkey) {
-    // in v1.0.0+ SATSCARD, the pubkey of the sealed slot (if any) is included here
     if (slot_pubkey.length !== 33) {
       throw new Error('Invalid slot pubkey length');
     }
@@ -205,29 +251,37 @@ function verify_certs_ll(
     throw new Error('bad sig in when verifying certificates');
   }
   let pubkey = card_pubkey;
+
   // follow certificate chain to factory root
   for (let i in cert_chain) {
     const signature = cert_chain[i];
     pubkey = CT_sig_to_pubkey(tou8(sha256s(pubkey)) as Uint8Array, signature);
   }
 
+  // fraudulent device
   if (Buffer.compare(Buffer.from(pubkey), FACTORY_ROOT_KEYS[0])) {
-    // fraudulent device
     throw new Error('Root cert is not from Coinkite. Card is counterfeit.');
   }
+
   console.log('Root cert is from Coinkite. Card is legit.');
   return pubkey;
 }
-
+/**
+ * [TS] only
+ * Given the response from "status" and "read" commands,
+ * and the nonce we gave for read command, and session key -> reconstruct the card's current pubkey.
+ * @param  {{is_tapsigner:boolean;card_nonce:Buffer}} status_resp
+ * @param  {{pubkey:Buffer;sig:Buffer}} read_resp
+ * @param  {Buffer} my_nonce
+ * @param  {Buffer} ses_key
+ * @returns Buffer
+ */
 function recover_pubkey(
   status_resp: { is_tapsigner: boolean; card_nonce: Buffer },
   read_resp: { pubkey: Buffer; sig: Buffer },
   my_nonce: Buffer,
   ses_key: Buffer
 ): Buffer {
-  // [TS] Given the response from "status" and "read" commands,
-  // and the nonce we gave for read command, and session key ... reconstruct
-  // the card's current pubkey.
   if (!status_resp['is_tapsigner']) {
     throw new Error('Card is not a Tapsigner');
   }
@@ -261,6 +315,16 @@ function recover_pubkey(
   return pubkey;
 }
 
+/**
+ * [SC] only
+ * Given the response from "status" and "read" commands, and the
+ * nonce we gave for read command, reconstruct the card's verified payment
+ * address. Check prefix/suffix match what's expected
+ * @param  {{is_tapsigner:boolean;card_nonce:Buffer;slots:any[];addr:string;}} status_resp
+ * @param  {{pubkey:Buffer;sig:Buffer}} read_resp
+ * @param  {Buffer} my_nonce
+ * @returns string
+ */
 function recover_address(
   status_resp: {
     is_tapsigner: boolean;
@@ -271,9 +335,6 @@ function recover_address(
   read_resp: { pubkey: Buffer; sig: Buffer },
   my_nonce: Buffer
 ): { pubkey: Buffer; addr: string } {
-  // [SC] Given the response from "status" and "read" commands, and the
-  // nonce we gave for read command, reconstruct the card's verified payment
-  // address. Check prefix/suffix match what's expected
   if (status_resp['is_tapsigner']) {
     throw new Error('recover_address: tapsigner not supported');
   }
@@ -324,6 +385,15 @@ function force_bytes(foo: string) {
   return typeof foo === 'string' ? Buffer.from(foo) : foo;
 }
 
+/**
+ * using signature response from 'deriv' command, recover the master pubkey for this slot
+ * @param  {Buffer} pub
+ * @param  {Buffer} sig
+ * @param  {Buffer} chain_code
+ * @param  {Buffer} my_nonce
+ * @param  {Buffer} card_nonce
+ * @returns Buffer
+ */
 function verify_master_pubkey(
   pub: Buffer,
   sig: Buffer,
@@ -331,8 +401,6 @@ function verify_master_pubkey(
   my_nonce: Buffer,
   card_nonce: Buffer
 ): Buffer {
-  // using signature response from 'deriv' command, recover the master pubkey
-  // for this slot
   const msg = Buffer.concat([
     Buffer.from('OPENDIME'),
     card_nonce,
@@ -352,29 +420,49 @@ function verify_master_pubkey(
   return pub;
 }
 
+/**
+ * @param  {Buffer} pubkey
+ * @param  {} testnet=false
+ * @returns string
+ */
 function render_address(pubkey: Buffer, testnet = false): string {
   // make the text string used as a payment address
-  if (pubkey.length === 32)
-    // actually a private key, convert
-    pubkey = CT_priv_to_pubkey(pubkey);
+  if (pubkey.length === 32) {
+    pubkey = CT_priv_to_pubkey(pubkey); // actually a private key, convert
+  }
   const HRP = !testnet ? 'bc' : 'tb';
   const words = bech32.toWords(hash160(pubkey));
   return bech32.encode(HRP, [0].concat(words));
 }
 
+/**
+ * re-derive the address we should expect
+ * this is "m/0" in BIP-32 nomenclature
+ * accepts master public key (before unseal) or master private key (after)
+ * @param  {Buffer} chain_code
+ * @param  {Buffer} master_pub
+ * @param  {} testnet=false
+ * @returns {derived_addr: string; pubkey: Buffer}
+ */
 function verify_derive_address(
   chain_code: Buffer,
   master_pub: Buffer,
   testnet = false
 ): { derived_addr: string; pubkey: Buffer } {
-  // # re-derive the address we should expect
-  // # - this is "m/0" in BIP-32 nomenclature
-  // # - accepts master public key (before unseal) or master private key (after)
   const pubkey = CT_bip32_derive(chain_code, master_pub, [0]);
-
   return { derived_addr: render_address(pubkey, testnet), pubkey };
 }
-
+/**
+ * The card will only make non-recoverable signatures (64 bytes)
+ * but we usually know the address which should be implied by
+ * the signature's pubkey, so we can try all values and discover the correct "rec_id"
+ * @param  {Buffer} digest
+ * @param  {Buffer} sig
+ * @param  {string|null} addr?
+ * @param  {Buffer|null} expect_pubkey?
+ * @param  {boolean=false} is_testnet
+ * @returns Buffer
+ */
 function make_recoverable_sig(
   digest: Buffer,
   sig: Buffer,
@@ -382,10 +470,6 @@ function make_recoverable_sig(
   expect_pubkey?: Buffer | null,
   is_testnet: boolean = false
 ): Buffer {
-  // The card will only make non-recoverable signatures (64 bytes)
-  // but we usually know the address which should be implied by
-  // the signature's pubkey, so we can try all values and discover
-  // the correct "rec_id"
   if (digest.length !== 32) {
     throw new Error('Invalid digest length');
   }
@@ -393,8 +477,8 @@ function make_recoverable_sig(
     throw new Error('Invalid sig length');
   }
 
+  // see BIP-137 for magic value "39"... perhaps not well supported tho
   for (var rec_id = 0; rec_id < 4; rec_id++) {
-    // see BIP-137 for magic value "39"... perhaps not well supported tho
     let pubkey;
     let rec_sig;
     try {
@@ -402,13 +486,12 @@ function make_recoverable_sig(
       pubkey = CT_sig_to_pubkey(digest, rec_sig);
     } catch (e) {
       if (rec_id >= 2) {
-        // because crypto I don't understand
-        continue;
+        continue; // because crypto I don't understand
       }
     }
-    //  Buffer.compare returns 0 if the buffers are equal
+
     if (expect_pubkey && Buffer.compare(expect_pubkey, Buffer.from(pubkey))) {
-      continue;
+      continue; //  Buffer.compare returns 0 if the buffers are equal
     }
     if (addr) {
       const got = render_address(pubkey, is_testnet);
@@ -423,7 +506,16 @@ function make_recoverable_sig(
   // failed to recover right pubkey value
   throw new Error('sig may not be created by that address/pubkey??');
 }
-
+/**
+ * Calcuate session key and xcvc value need for auth'ed commands
+ * also picks an arbitrary keypair for my side of the ECDH?
+ * requires pubkey from card and proposed CVC value
+ * @param  {string} cmd
+ * @param  {Buffer} card_nonce
+ * @param  {Buffer} his_pubkey
+ * @param  {string|Buffer} cvc
+ * @returns {sk: Buffer; ag: {epubkey: Buffer; xcvc: Buffer;}}
+ */
 function calc_xcvc(
   cmd: string,
   card_nonce: Buffer,
@@ -436,19 +528,13 @@ function calc_xcvc(
     xcvc: Buffer;
   };
 } {
-  // Calcuate session key and xcvc value need for auth'ed commands
-  // - also picks an arbitrary keypair for my side of the ECDH?
-  // - requires pubkey from card and proposed CVC value
   if (cvc.length < 6 || cvc.length > 32) {
     throw new Error('Invalid cvc length');
   }
   cvc = force_bytes(cvc as string);
-  // fresh new ephemeral key for our side of connection
-  const { priv: my_privkey, pub: my_pubkey } = CT_pick_keypair();
-  // standard ECDH
-  // - result is sha256(compressed shared point (33 bytes))
+  const { priv: my_privkey, pub: my_pubkey } = CT_pick_keypair(); // fresh new ephemeral key for our side of connection
   const session_key = Buffer.from(
-    CT_ecdh(his_pubkey, tou8(my_privkey) as Uint8Array)
+    CT_ecdh(his_pubkey, tou8(my_privkey) as Uint8Array) // standard ECDH: result is sha256(compressed shared point (33 bytes))
   );
   const message = Buffer.concat([card_nonce, Buffer.from(cmd)]);
   const md = sha256s(message);

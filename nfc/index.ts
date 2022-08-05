@@ -1,22 +1,33 @@
 import { cborEncode, decodeAndSplitResponse } from './parser';
 
+import { APP_ID } from '../constants';
 import NfcManager from 'react-native-nfc-manager';
 import { Platform } from 'react-native';
 
+/**
+ * Start a session with the cards with select-app command
+ * The session is active until the rfc signal persists
+ * This is lost once the card is far from the nfc receiver
+ */
 async function init() {
   try {
-    const selectApp = [
-      0x00, 0xa4, 0x04, 0x00, 0x0f, 0xf0, 0x43, 0x6f, 0x69, 0x6e, 0x6b, 0x69,
-      0x74, 0x65, 0x43, 0x41, 0x52, 0x44, 0x76, 0x31,
-    ];
-    const selectResponse = await NfcManager.isoDepHandler.transceive(selectApp);
+    const headers = Buffer.from('00a404000f', 'hex');
+    const selectApp = Buffer.concat([headers, APP_ID]);
+    const selectResponse = await NfcManager.isoDepHandler.transceive(
+      selectApp.toJSON().data
+    );
     const { response, status } = decodeAndSplitResponse(selectResponse);
     return { response, status };
   } catch (error) {
     throw new Error('Initialisation failed');
   }
 }
-
+/**
+ * NFC transceiver for all commands sent to and from the cards
+ * uses isoDepHandler
+ * @param  {string} cmd
+ * @param  {any} args
+ */
 async function send(cmd: string, args: any) {
   try {
     args.cmd = cmd;
@@ -32,9 +43,15 @@ async function send(cmd: string, args: any) {
     throw error;
   }
 }
-
+/**
+ * Android only
+ * specific commands are expensive in time
+ * let NFC listen in for extra few seconds for the response from the cards
+ * @param  {string} cmd
+ */
 const getDelay = (cmd: string) => {
-  if (cmd === 'wait' || cmd === 'backup' || cmd === 'new') {
+  const expensiveCommands = ['new', 'backup', 'wait'];
+  if (expensiveCommands.includes(cmd)) {
     return 1000;
   } else {
     return 0;

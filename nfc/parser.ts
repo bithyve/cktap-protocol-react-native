@@ -1,10 +1,13 @@
 const CBOR = require('@ellipticoin/cbor');
 
-// transceive data format: CLA, INS, P1, P2, Data Len, Data (bytes array)
+/**
+ * cards consume and send cbor encoded data
+ * @param  {object} obj
+ */
 export const cborEncode = (obj: object) => {
   const data = CBOR.encode(obj);
-  const parsed = JSON.parse(JSON.stringify(data)).data;
-  return [0x00, 0xcb, 0x00, 0x00, parsed.length].concat(parsed);
+  const parsed = data.toJSON().data;
+  return [0x00, 0xcb, 0x00, 0x00, parsed.length].concat(parsed); // transceive data format: CLA, INS, P1, P2, Data Len, Data (bytes array)
 };
 
 export const decodeAndSplitResponse = (r: number[]) => {
@@ -14,7 +17,10 @@ export const decodeAndSplitResponse = (r: number[]) => {
   };
 };
 
-// Convert a byte array or Buffer to a hex string
+/**
+ * Convert a byte array or Buffer to a hex string
+ * @param  {Buffer} bytes
+ */
 export const bytesToHex = (bytes: Buffer) => {
   try {
     for (var hex = [], i = 0; i < bytes.length; i++) {

@@ -23,8 +23,7 @@ import { init, send as transceive } from './nfc';
 
 import { Platform } from 'react-native';
 import base58 from 'bs58';
-
-const { randomBytes } = require('crypto');
+import { randomBytes } from 'crypto';
 
 async function _send(cmd: string, args: any = {}) {
   const { status: stat_word, response: resp } = await transceive(cmd, args);
@@ -202,8 +201,8 @@ export class CKTapCard {
   }
 
   async address(
-    faster: boolean = false,
-    incl_pubkey: boolean = false,
+    faster = false,
+    incl_pubkey = false,
     slot: number = null
   ): Promise<{
     addr: string;
@@ -261,7 +260,7 @@ export class CKTapCard {
         my_nonce,
         card_nonce
       );
-      const { derived_addr, pubkey: _ } = verify_derive_address(
+      const { derived_addr } = verify_derive_address(
         resp['chain_code'],
         master_pub,
         this.is_testnet
@@ -313,7 +312,7 @@ export class CKTapCard {
       throw new Error('All path components must be hardened');
     }
 
-    const { session_key: _, resp } = await this.send_auth('derive', cvc, {
+    const { resp } = await this.send_auth('derive', cvc, {
       path: np,
       nonce: pick_nonce(),
     });
@@ -333,20 +332,20 @@ export class CKTapCard {
     if (!this.is_tapsigner) {
       throw new Error('TAPSIGNER only command');
     }
-    const { session_key: _, resp } = await this.send_auth('xpub', cvc, {
+    const { resp } = await this.send_auth('xpub', cvc, {
       master: true,
     });
     const xpub = resp['xpub'];
     return hash160(xpub.slice(-33)).slice(0, 4);
   }
 
-  async get_xpub(cvc: string, master: boolean = false): Promise<string> {
+  async get_xpub(cvc: string, master = false): Promise<string> {
     // fetch XPUB, either derived or master one
     // - result is BIP-32 serialized and base58-check encoded
     if (!this.is_tapsigner) {
       throw new Error('TAPSIGNER only command');
     }
-    const { session_key: _, resp } = await this.send_auth('xpub', cvc, {
+    const { resp } = await this.send_auth('xpub', cvc, {
       master,
     });
     const xpub = resp['xpub'];
@@ -410,7 +409,7 @@ export class CKTapCard {
     if (!this.is_tapsigner) {
       throw new Error('TAPSIGNER only command');
     }
-    const { session_key: _, resp } = await this.send_auth('backup', cvc);
+    const { resp } = await this.send_auth('backup', cvc);
     return resp['data'];
   }
 
@@ -584,9 +583,9 @@ export class CKTapCard {
     if (this.is_tapsigner) {
       slot = 0;
     }
-    for (var i = 0; i < 4; i++) {
+    for (let i = 0; i < 4; i++) {
       try {
-        const { session_key: _, resp } = await this.send_auth('sign', cvc, {
+        const { resp } = await this.send_auth('sign', cvc, {
           slot,
           digest,
           subpath: this.is_tapsigner ? int_path : null,
@@ -622,7 +621,7 @@ export class CKTapCard {
   async setup(
     cvc: string,
     chain_code: Buffer = null,
-    new_chain_code: boolean = false
+    new_chain_code = false
   ): Promise<
     | CKTapCard
     | {
@@ -669,7 +668,7 @@ export class CKTapCard {
     }
 
     try {
-      const { session_key: _, resp } = await this.send_auth('new', cvc, args);
+      const { resp } = await this.send_auth('new', cvc, args);
       if (this.is_tapsigner) {
         console.log('TAPSIGNER ready for use');
         return this;

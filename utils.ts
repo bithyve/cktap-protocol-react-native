@@ -30,8 +30,8 @@ function tou8(
   if (typeof buf === 'string') {
     buf = Buffer.from(buf);
   }
-  var a = new Uint8Array(buf.length);
-  for (var i = 0; i < buf.length; i++) {
+  const a = new Uint8Array(buf.length);
+  for (let i = 0; i < buf.length; i++) {
     a[i] = buf[i];
   }
   return a;
@@ -81,8 +81,8 @@ function path_component_in_range(num: number): boolean {
  */
 function path2str(path: number[]): string {
   const temp = [];
-  for (var i = 0; i < path.length; i += 1) {
-    var item = path[i];
+  for (let i = 0; i < path.length; i += 1) {
+    const item = path[i];
     temp.push((item & ~HARDENED).toString() + (item & HARDENED ? 'h' : ''));
   }
   return ['m', ...temp].join('/');
@@ -96,7 +96,7 @@ function str2path(path: string): number[] {
   let rv: number[] = [];
   let here;
   const splitArr = path.split('/');
-  for (let i in splitArr) {
+  for (const i in splitArr) {
     const item = splitArr[i];
     if (item == 'm') {
       continue;
@@ -253,7 +253,7 @@ function verify_certs_ll(
   let pubkey = card_pubkey;
 
   // follow certificate chain to factory root
-  for (let i in cert_chain) {
+  for (const i in cert_chain) {
     const signature = cert_chain[i];
     pubkey = CT_sig_to_pubkey(tou8(sha256s(pubkey)) as Uint8Array, signature);
   }
@@ -468,7 +468,7 @@ function make_recoverable_sig(
   sig: Buffer,
   addr?: string | null,
   expect_pubkey?: Buffer | null,
-  is_testnet: boolean = false
+  is_testnet = false
 ): Buffer {
   if (digest.length !== 32) {
     throw new Error('Invalid digest length');
@@ -478,7 +478,7 @@ function make_recoverable_sig(
   }
 
   // see BIP-137 for magic value "39"... perhaps not well supported tho
-  for (var rec_id = 0; rec_id < 4; rec_id++) {
+  for (let rec_id = 0; rec_id < 4; rec_id++) {
     let pubkey;
     let rec_sig;
     try {

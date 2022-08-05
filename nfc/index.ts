@@ -29,19 +29,15 @@ async function init() {
  * @param  {any} args
  */
 async function send(cmd: string, args: any) {
-  try {
-    args.cmd = cmd;
-    const bytes = cborEncode(args);
-    const delay = getDelay(cmd);
-    if (Platform.OS === 'android' && delay) {
-      await NfcManager.setTimeout(delay);
-    }
-    const r = await NfcManager.isoDepHandler.transceive(bytes);
-    const { response, status } = decodeAndSplitResponse(r);
-    return { response, status };
-  } catch (error) {
-    throw error;
+  args.cmd = cmd;
+  const bytes = cborEncode(args);
+  const delay = getDelay(cmd);
+  if (Platform.OS === 'android' && delay) {
+    await NfcManager.setTimeout(delay);
   }
+  const r = await NfcManager.isoDepHandler.transceive(bytes);
+  const { response, status } = decodeAndSplitResponse(r);
+  return { response, status };
 }
 /**
  * Android only

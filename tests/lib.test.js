@@ -45,7 +45,7 @@ test('btc_primitives', () => {
 test('UInt8ArrayConversion', () => {
   const buf = Buffer.from([0, 1, 2, 3, 4]);
   let u8 = new Uint8Array(buf.length);
-  for (var i = 0; i < buf.length; i++) {
+  for (let i = 0; i < buf.length; i++) {
     u8[i] = buf[i];
   }
   expect(utils.tou8(buf)).toEqual(u8);

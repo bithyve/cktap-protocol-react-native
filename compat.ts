@@ -28,7 +28,7 @@ function hash160(args: any): any {
  * @returns number[]
  */
 function sha256s(msg: Message): number[] {
-  var hash = sha256.create();
+  const hash = sha256.create();
   const msg_digest = hash.update(msg).digest();
   return msg_digest;
 }

@@ -1,12 +1,13 @@
 {
   "name": "coinkite-tap-protocol-js",
   "version": "0.0.1",
-  "description": "coinkite's tap protocol to support Tapcards and Satcards in javascript",
+  "description": "Coinkite's tap-protocol to support Tapsigner and Satcard in Javascript",
   "main": "index.ts",
   "type": "module",
   "scripts": {
     "prepare": "install-peers",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "prettier": "npx prettier --write ."
   },
   "keywords": [
     "coinkite_tap_protocol-js",

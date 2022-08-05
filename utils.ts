@@ -134,7 +134,7 @@ function str2path(path: string): number[] {
  * @returns boolean
  */
 function all(itr: any[]): boolean {
-  return itr.every(item => !!item);
+  return itr.every((item) => !!item);
 }
 
 /**
@@ -142,7 +142,7 @@ function all(itr: any[]): boolean {
  * @returns boolean
  */
 function any(itr: any[]): boolean {
-  return itr.some(item => !!item);
+  return itr.some((item) => !!item);
 }
 
 /**
@@ -150,7 +150,7 @@ function any(itr: any[]): boolean {
  * @returns boolean
  */
 function all_hardened(path: number[]): boolean {
-  return all(path.map(item => !!(item & HARDENED)));
+  return all(path.map((item) => !!(item & HARDENED)));
 }
 
 /**
@@ -158,7 +158,7 @@ function all_hardened(path: number[]): boolean {
  * @returns boolean
  */
 function none_hardened(path: number[]): boolean {
-  return !any(path.map(item => !!(item & HARDENED)));
+  return !any(path.map((item) => !!(item & HARDENED)));
 }
 
 /**

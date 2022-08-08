@@ -1,6 +1,5 @@
 import { CT_sig_verify, hash160, sha256s } from './compat';
 import { DERIVE_MAX_BIP32_PATH_DEPTH, SW_OKAY } from './constants';
-import NfcManager, { NfcTech } from 'react-native-nfc-manager';
 import {
   all_hardened,
   calc_xcvc,
@@ -19,7 +18,14 @@ import {
   verify_master_pubkey,
   xor_bytes,
 } from './utils';
-import { init, send as transceive } from './nfc';
+import {
+  closeConnection,
+  init,
+  isNfcSupported,
+  setiOSAlert,
+  startConnection,
+  send as transceive,
+} from './nfc';
 
 import { Platform } from 'react-native';
 import base58 from 'bs58';
@@ -28,6 +34,14 @@ import { randomBytes } from 'crypto';
 async function _send(cmd: string, args: any = {}) {
   const { status: stat_word, response: resp } = await transceive(cmd, args);
   return { stat_word, resp };
+}
+
+function errorHandler(e) {
+  closeConnection();
+  if (e.toString() === 'Error: Initialisation failed') {
+    throw new Error(`Please hold the card more stably or longer`);
+  }
+  throw e;
 }
 
 export class CKTapCard {
@@ -61,34 +75,59 @@ export class CKTapCard {
     this._certs_checked = false;
   }
 
+  // Android only
+  async startNfcSession() {
+    try {
+      await startConnection();
+      await this.selectApp();
+    } catch (error) {
+      // ignore since NFC communication aready established
+      if (
+        error.toString() === 'Error: You can only issue one request at a time'
+      ) {
+        return true;
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  // Android only
+  async endNfcSession() {
+    await closeConnection();
+  }
+
   // wrap any number of logical commands or functions that need to run with this nfc wrapper
   async nfcWrapper(callback: () => Promise<any>): Promise<any> {
-    try {
-      const supported = await NfcManager.isSupported();
-      if (supported) {
-        await NfcManager.start();
-        await NfcManager.requestTechnology([NfcTech.IsoDep]);
-        await this.selectApp();
-        const resp = await callback();
-        if (Platform.OS === 'ios') {
-          await NfcManager.setAlertMessageIOS('Success');
-        }
-        await NfcManager.cancelTechnologyRequest();
-        return resp;
-      }
-    } catch (e) {
-      if (Platform.OS === 'ios') {
-        NfcManager.setAlertMessageIOS('Something went wrong!');
-      }
-      NfcManager.cancelTechnologyRequest();
-      if (
-        ['Error: transceive fail', 'Error: Initialisation failed'].includes(
-          e.toString()
-        )
-      ) {
-        throw new Error(`Please hold the card more stably or longer`);
-      }
-      throw e;
+    const supported = await isNfcSupported();
+
+    if (supported) {
+      return Platform.select({
+        android: async () => {
+          try {
+            await this.startNfcSession();
+            const resp = await callback();
+            return resp;
+          } catch (e) {
+            errorHandler(e);
+          }
+        },
+        ios: async () => {
+          try {
+            await startConnection();
+            await this.selectApp();
+            const resp = await callback();
+            setiOSAlert('Success');
+            closeConnection();
+            return resp;
+          } catch (e) {
+            setiOSAlert('Something went wrong!');
+            errorHandler(e);
+          }
+        },
+      })();
+    } else {
+      throw new Error("Sorry, this device doesn't support NFC");
     }
   }
 

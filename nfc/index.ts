@@ -2,6 +2,7 @@ import { cborEncode, decodeAndSplitResponse } from './parser';
 
 import { APP_ID } from '../constants';
 import NfcManager from 'react-native-nfc-manager';
+import { NfcTech } from 'react-native-nfc-manager';
 import { Platform } from 'react-native';
 
 /**
@@ -54,4 +55,37 @@ const getDelay = (cmd: string) => {
   }
 };
 
-export { send, init };
+/**
+ * Check if device supports NFC feature
+ */
+const isNfcSupported = async () => NfcManager.isSupported();
+
+/**
+ * Start NFC hardware usage with desired NfcTech on Android and iOS
+ */
+const startConnection = async () => {
+  await NfcManager.start();
+  await NfcManager.requestTechnology([NfcTech.IsoDep]);
+};
+
+/**
+ * End NFC hardware usage on Android and iOS
+ */
+const closeConnection = async () => {
+  await NfcManager.cancelTechnologyRequest();
+};
+
+/**
+ * iOS only - update message on NFC system dialog
+ */
+const setiOSAlert = async (message: string) =>
+  NfcManager.setAlertMessageIOS(message);
+
+export {
+  send,
+  init,
+  isNfcSupported,
+  startConnection,
+  closeConnection,
+  setiOSAlert,
+};

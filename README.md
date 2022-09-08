@@ -123,3 +123,17 @@ const initiatedCard = await card.nfcWrapper(async () => {
 * iOS has it's own system NFC interaction to let the user know that the NFC is active.
 * Android has no interaction as such. You can use your own modal/interaction which can open and close before/after the callback to card.nfcWrapper.
 * [Demo app with detailed usage of the library](https://github.com/bithyve/Cktap-Demo).
+
+## TEST
+Run test suits for the library with
+```sh
+yarn test
+```
+
+## LINT
+Lint the library with
+```sh
+yarn lint
+```
+
+

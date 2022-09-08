@@ -122,3 +122,4 @@ const initiatedCard = await card.nfcWrapper(async () => {
 * Place the card for the NFC scan before **card.nfcWrapper** is called. There is no need to remove the card until the wrapper completes the callback.
 * iOS has it's own system NFC interaction to let the user know that the NFC is active.
 * Android has no interaction as such. You can use your own modal/interaction which can open and close before/after the callback to card.nfcWrapper.
+* [Demo app with detailed usage of the library](https://github.com/bithyve/Cktap-Demo).

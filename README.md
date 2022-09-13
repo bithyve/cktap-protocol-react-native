@@ -72,7 +72,7 @@ import { CKTapCard } from 'cktap-protocol-react-native';
 .
 .
 .
-const card:CKTapCard = useRef(new CKTapCard()).current;
+const card: CKTapCard = useRef(new CKTapCard()).current;
 ```
 
 
@@ -90,7 +90,7 @@ You can also batch commands in a single NFC scan
 const initiatedCard = await card.nfcWrapper(async () => {
     const cardStatus = await card.first_look();
     const isCardLegit = await card.certificate_check();
-    if(isCardLegit){
+    if (isCardLegit) {
         // run the setup command just once
         await card.setup(cvc); // setup the card with the CVC at the back of the card (don't forget to prompt the user to change it later)
     }
@@ -117,6 +117,14 @@ const initiatedCard = await card.nfcWrapper(async () => {
 });
 ```
 
+### Android specific usage
+* Make sure you call the following command on **android** once the interactions with the card is completed. This is specifically done in android as we do not end the nfc after the wrapper has executed the commands but which is not the case with iOS. 
+    This behaviour is different for different platforms since the NFC interaction is blocking in iOS (system dialog) and non-blocking in android. Hence the user can manually add NFC dialogs/interactions in case of android when the communication with the card is done (optionally).
+```tsx
+// Android-only
+await card.endNfcSession(); // either call is on component unmount or post card.nfcWrapper
+```
+
 
 **NOTE**
 * Place the card for the NFC scan before **card.nfcWrapper** is called. There is no need to remove the card until the wrapper completes the callback.
@@ -126,13 +134,13 @@ const initiatedCard = await card.nfcWrapper(async () => {
 
 ## TEST
 Run test suits for the library with
-```sh
+```zsh
 yarn test
 ```
 
 ## LINT
 Lint the library with
-```sh
+```zsh
 yarn lint
 ```
 

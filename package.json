@@ -21,7 +21,7 @@
   "dependencies": {
     "@ellipticoin/cbor": "^1.0.4",
     "bech32": "2.0.0",
-    "bip32": "2.0.6",
+    "bip32": "4.0.0",
     "bs58": "5.0.0",
     "buf-b32": "2.2.0",
     "buffer-xor": "2.0.2",

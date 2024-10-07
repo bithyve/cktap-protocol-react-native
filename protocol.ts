@@ -22,8 +22,6 @@ import {
   closeConnection,
   init,
   isNfcSupported,
-  setiOSMessage,
-  setiOSError,
   startConnection,
   send as transceive,
 } from './nfc';
@@ -725,5 +723,10 @@ export class CKTapCard {
 
   async read(cvc: string): Promise<any> {
     return this.send_auth('read', cvc, { nonce: pick_nonce() });
+  }
+
+  // For development purposes only
+  async set_is_testnet(testnet: boolean) {
+    this.is_testnet = testnet;
   }
 }

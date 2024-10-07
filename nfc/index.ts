@@ -78,8 +78,14 @@ const closeConnection = async () => {
 /**
  * iOS only - update message on NFC system dialog
  */
-const setiOSAlert = async (message: string) =>
+const setiOSMessage = async (message: string) =>
   NfcManager.setAlertMessageIOS(message);
+
+/**
+ * iOS only - show error with message on NFC system dialog
+ */
+const setiOSError = async (message: string) =>
+  NfcManager.invalidateSessionWithErrorIOS(message);
 
 export {
   send,
@@ -87,5 +93,6 @@ export {
   isNfcSupported,
   startConnection,
   closeConnection,
-  setiOSAlert,
+  setiOSMessage,
+  setiOSError,
 };

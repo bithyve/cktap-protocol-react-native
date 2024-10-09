@@ -22,7 +22,6 @@ import {
   closeConnection,
   init,
   isNfcSupported,
-  setiOSAlert,
   startConnection,
   send as transceive,
 } from './nfc';
@@ -37,7 +36,6 @@ async function _send(cmd: string, args: any = {}) {
 }
 
 function errorHandler(e) {
-  closeConnection();
   if (e.toString() === 'Error: Initialisation failed') {
     throw new Error(`Please hold the card more stably or longer`);
   }
@@ -92,7 +90,6 @@ export class CKTapCard {
     }
   }
 
-  // Android only
   async endNfcSession() {
     await closeConnection();
   }
@@ -117,11 +114,8 @@ export class CKTapCard {
             await startConnection();
             await this.selectApp();
             const resp = await callback();
-            setiOSAlert('Success');
-            closeConnection();
             return resp;
           } catch (e) {
-            setiOSAlert('Something went wrong!');
             errorHandler(e);
           }
         },
@@ -729,5 +723,10 @@ export class CKTapCard {
 
   async read(cvc: string): Promise<any> {
     return this.send_auth('read', cvc, { nonce: pick_nonce() });
+  }
+
+  // For development purposes only
+  async set_is_testnet(testnet: boolean) {
+    this.is_testnet = testnet;
   }
 }
